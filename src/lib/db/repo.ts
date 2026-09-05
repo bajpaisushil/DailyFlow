@@ -3,6 +3,7 @@ import type {
   CommuteSession, FiringRecord, Place, Routine,
 } from '@/lib/types'
 import * as store from './sqlite'
+import { newId } from '@/lib/id'
 
 /**
  * Typed access to each collection. Thin on purpose — the document store underneath already
@@ -10,13 +11,9 @@ import * as store from './sqlite'
  * timestamps and the soft-delete convention.
  */
 
-export function newId(): string {
-  // Available on Hermes via Expo's polyfill; stable and collision-free for our volumes.
-  return (
-    globalThis.crypto?.randomUUID?.() ??
-    `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
-  )
-}
+// Re-exported so existing call sites keep working; the implementation lives in lib/id.ts
+// with no dependencies, so dependency-free modules can use it too.
+export { newId }
 
 function stamp<T extends { createdAt?: number; updatedAt?: number }>(doc: T): T {
   const now = Date.now()

@@ -1,5 +1,5 @@
 import type { Automation, Checklist, Routine } from '@/lib/types'
-import { newId } from '@/lib/db/repo'
+import { newId } from '@/lib/id'
 import { toHHMM, parseHHMM } from '@/lib/time'
 import { S } from '@/lib/strings'
 
