@@ -1,0 +1,81 @@
+import React from 'react'
+import { View, StyleSheet } from 'react-native'
+import { useRouter } from 'expo-router'
+import Animated, { FadeInDown } from 'react-native-reanimated'
+import { Screen } from '@/components/ui/Screen'
+import { ScreenHeader } from '@/components/ui/ScreenHeader'
+import { Card } from '@/components/ui/Card'
+import { Text } from '@/components/ui/Text'
+import { Icon, IconBadge, type IconName } from '@/components/ui/Icon'
+import { PressableScale } from '@/components/ui/PressableScale'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { PermissionCard } from '@/components/ui/PermissionCard'
+import { useCapabilities } from '@/hooks/useCapabilities'
+import { useData } from '@/stores/data'
+import { describeRadius } from '@/lib/places'
+import { space } from '@/theme/tokens'
+import { useColors } from '@/theme/ThemeProvider'
+import { S } from '@/lib/strings'
+
+/** Places the user goes often. Arrival and departure can trigger reminders. */
+export default function PlacesScreen() {
+  const router = useRouter()
+  const c = useColors()
+  const places = useData((s) => s.places)
+  const { caps, askForPlaces, openPhoneSettings } = useCapabilities()
+
+  // Only ask once the user actually has a place to watch — the permission is meaningless
+  // before that, and asking early is exactly the aggression we promised to avoid.
+  const needsPlacePermission =
+    places.length > 0 && !caps.placesWorkWhenClosed && caps.location.background !== 'granted'
+
+  return (
+    <Screen>
+      <ScreenHeader
+        title={S.nav.places}
+        help={S.place.help}
+        onAdd={() => router.push('/place/new')}
+        addLabel={S.place.addOne}
+      />
+
+      {needsPlacePermission ? (
+        <PermissionCard
+          kind="places"
+          state={caps.location.background === 'denied' ? 'denied' : 'undetermined'}
+          onAsk={() => void askForPlaces()}
+          onOpenSettings={openPhoneSettings}
+        />
+      ) : null}
+
+      {places.length === 0 ? (
+        <EmptyState
+          icon="place"
+          title={S.place.empty}
+          help={S.place.emptyHelp}
+          actionLabel={S.place.addOne}
+          onAction={() => router.push('/place/new')}
+        />
+      ) : (
+        places.map((place, i) => (
+          <Animated.View key={place.id} entering={FadeInDown.delay(i * 40).duration(300)}>
+            <PressableScale onPress={() => router.push(`/place/${place.id}`)} depth="sm">
+              <Card style={styles.card}>
+                <IconBadge name={(place.icon as IconName) ?? 'place'} />
+                <View style={styles.text}>
+                  <Text variant="heading">{place.name}</Text>
+                  <Text variant="caption" tone="muted">{describeRadius(place.radiusM)}</Text>
+                </View>
+                <Icon name="forward" size={20} color={c.inkFaint} />
+              </Card>
+            </PressableScale>
+          </Animated.View>
+        ))
+      )}
+    </Screen>
+  )
+}
+
+const styles = StyleSheet.create({
+  card: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginBottom: space.md },
+  text: { flex: 1, gap: 2 },
+})

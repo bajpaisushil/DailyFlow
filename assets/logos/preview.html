@@ -1,0 +1,401 @@
+<title>DailyFlow Marks</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --ground:#F5F6FA;
+    --plate:#FFFFFF;
+    --plate-sunk:#EDEFF6;
+    --edge:#E1E4EF;
+    --edge-soft:#EAECF4;
+    --ink:#14151F;
+    --ink-2:#5B5E75;
+    --ink-3:#8F93A9;
+    --indigo:#5B5BD6;
+    --violet:#8B5CF6;
+    --tile-dark:#0E0F17;
+    --shadow:0 1px 2px rgba(20,21,31,.04),0 12px 28px -14px rgba(20,21,31,.18);
+  }
+  :root:not([data-theme="light"]){
+    @media (prefers-color-scheme: dark){
+      --ground:#0A0B11;
+      --plate:#14151D;
+      --plate-sunk:#101119;
+      --edge:#242637;
+      --edge-soft:#1D1F2C;
+      --ink:#F2F3F8;
+      --ink-2:#A0A3B8;
+      --ink-3:#6E7288;
+      --indigo:#8B8BF5;
+      --violet:#A78BFA;
+      --tile-dark:#05060A;
+      --shadow:0 1px 2px rgba(0,0,0,.5),0 14px 32px -16px rgba(0,0,0,.8);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#0A0B11;
+    --plate:#14151D;
+    --plate-sunk:#101119;
+    --edge:#242637;
+    --edge-soft:#1D1F2C;
+    --ink:#F2F3F8;
+    --ink-2:#A0A3B8;
+    --ink-3:#6E7288;
+    --indigo:#8B8BF5;
+    --violet:#A78BFA;
+    --tile-dark:#05060A;
+    --shadow:0 1px 2px rgba(0,0,0,.5),0 14px 32px -16px rgba(0,0,0,.8);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    background:var(--ground);
+    color:var(--ink);
+    font-family:"IBM Plex Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    font-size:15px;
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1120px;margin:0 auto;padding:56px 28px 96px}
+
+  /* ── Masthead ─────────────────────────────────────────── */
+  .masthead{
+    display:grid;
+    grid-template-columns:auto 1fr;
+    gap:26px;
+    align-items:center;
+    padding-bottom:30px;
+    border-bottom:1px solid var(--edge);
+    margin-bottom:46px;
+  }
+  .masthead .stamp{
+    width:66px;height:66px;border-radius:20px;
+    background:linear-gradient(135deg,var(--indigo),var(--violet));
+    display:grid;place-items:center;
+    box-shadow:var(--shadow);
+  }
+  h1{
+    font-family:"Bricolage Grotesque","IBM Plex Sans",sans-serif;
+    font-weight:800;
+    font-size:clamp(30px,4.6vw,46px);
+    letter-spacing:-.035em;
+    line-height:1.02;
+    margin:0 0 6px;
+    text-wrap:balance;
+  }
+  .dek{margin:0;color:var(--ink-2);max-width:60ch}
+  .kicker{
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-3);margin:0 0 10px;
+  }
+
+  /* ── Note strip ───────────────────────────────────────── */
+  .note{
+    display:flex;gap:14px;align-items:flex-start;
+    background:var(--plate-sunk);
+    border:1px solid var(--edge-soft);
+    border-radius:14px;
+    padding:16px 18px;
+    margin-bottom:44px;
+    color:var(--ink-2);
+    font-size:14px;
+  }
+  .note svg{flex:none;margin-top:2px}
+  .note b{color:var(--ink);font-weight:600}
+
+  /* ── Grid ─────────────────────────────────────────────── */
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(316px,1fr));
+    gap:22px;
+  }
+  .card{
+    background:var(--plate);
+    border:1px solid var(--edge);
+    border-radius:20px;
+    overflow:hidden;
+    display:flex;flex-direction:column;
+  }
+
+  /* Big mark on its gradient tile — the "hero" rendering */
+  .hero{
+    padding:34px 26px 30px;
+    display:grid;place-items:center;
+    background:
+      radial-gradient(120% 100% at 50% 0%, var(--plate-sunk), transparent 70%);
+    border-bottom:1px solid var(--edge-soft);
+  }
+  .tile-lg{
+    width:132px;height:132px;border-radius:31px;
+    background:linear-gradient(135deg,var(--indigo),var(--violet));
+    display:grid;place-items:center;
+    box-shadow:var(--shadow);
+  }
+  .tile-lg svg{width:80px;height:80px}
+
+  /* At-size strip: the real legibility test */
+  .sizes{
+    display:flex;align-items:center;gap:16px;
+    padding:18px 24px;
+    border-bottom:1px solid var(--edge-soft);
+  }
+  .t{display:grid;place-items:center;flex:none}
+  .t-grad{background:linear-gradient(135deg,var(--indigo),var(--violet))}
+  .t-light{background:#FFFFFF;border:1px solid var(--edge)}
+  .t-dark{background:var(--tile-dark)}
+  .s56{width:56px;height:56px;border-radius:14px}
+  .s56 svg{width:34px;height:34px}
+  .s36{width:36px;height:36px;border-radius:9px}
+  .s36 svg{width:22px;height:22px}
+  .sizes .cap{
+    margin-left:auto;text-align:right;
+    font-family:"IBM Plex Mono",monospace;font-size:10.5px;
+    letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);
+    line-height:1.5;
+  }
+
+  .meta{padding:20px 24px 24px;display:flex;flex-direction:column;gap:7px;flex:1}
+  .name{
+    display:flex;align-items:baseline;gap:9px;
+  }
+  .num{
+    font-family:"IBM Plex Mono",monospace;font-size:11px;
+    color:var(--indigo);font-weight:500;
+  }
+  h2{
+    font-family:"Bricolage Grotesque","IBM Plex Sans",sans-serif;
+    font-size:19px;font-weight:600;letter-spacing:-.02em;margin:0;
+  }
+  .why{margin:0;color:var(--ink-2);font-size:14px}
+  .tag{
+    margin-top:auto;padding-top:12px;
+    font-family:"IBM Plex Mono",monospace;font-size:10.5px;
+    letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);
+  }
+
+  @media (prefers-reduced-motion:no-preference){
+    .card{transition:border-color .18s ease, transform .18s ease}
+    .card:hover{border-color:var(--indigo);transform:translateY(-2px)}
+  }
+  :focus-visible{outline:2.5px solid var(--indigo);outline-offset:3px;border-radius:8px}
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="stamp">
+      <svg viewBox="0 0 100 100" width="38" height="38" aria-hidden="true">
+        <path d="M27.4 72.6 A32 32 0 1 1 72.6 72.6" fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round"/>
+        <circle cx="72.6" cy="72.6" r="7.5" fill="#fff"/>
+      </svg>
+    </div>
+    <div>
+      <p class="kicker">DailyFlow · identity options</p>
+      <h1>Eight marks to choose from</h1>
+      <p class="dek">Every mark is drawn on the same 100&nbsp;×&nbsp;100 grid with a single stroke weight, so they can be compared fairly. Pick by number.</p>
+    </div>
+  </header>
+
+  <div class="note">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.5v.5"/>
+    </svg>
+    <p style="margin:0">
+      <b>Judge them small, not large.</b> A home-screen icon is seen at about 36&nbsp;px. Each card shows the mark at
+      full size, then at 56&nbsp;px and 36&nbsp;px on light and dark tiles — if it survives the small row, it works.
+    </p>
+  </div>
+
+  <div class="grid">
+
+    <!-- 1 ───────────────────────────────────────────────── -->
+    <article class="card">
+      <div class="hero">
+        <div class="tile-lg">
+          <svg viewBox="0 0 100 100" aria-label="Day Arc mark">
+            <path d="M27.4 72.6 A32 32 0 1 1 72.6 72.6" fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round"/>
+            <circle cx="72.6" cy="72.6" r="7.5" fill="#fff"/>
+          </svg>
+        </div>
+      </div>
+      <div class="sizes">
+        <div class="t t-grad s56"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="M27.4 72.6 A32 32 0 1 1 72.6 72.6" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round"/><circle cx="72.6" cy="72.6" r="8" fill="#fff"/></svg></div>
+        <div class="t t-light s36"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="M27.4 72.6 A32 32 0 1 1 72.6 72.6" fill="none" stroke="#5B5BD6" stroke-width="11" stroke-linecap="round"/><circle cx="72.6" cy="72.6" r="8.5" fill="#5B5BD6"/></svg></div>
+        <div class="t t-dark s36"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="M27.4 72.6 A32 32 0 1 1 72.6 72.6" fill="none" stroke="#8B8BF5" stroke-width="11" stroke-linecap="round"/><circle cx="72.6" cy="72.6" r="8.5" fill="#8B8BF5"/></svg></div>
+        <div class="cap">56px<br>36px</div>
+      </div>
+      <div class="meta">
+        <div class="name"><span class="num">01</span><h2>Day Arc</h2></div>
+        <p class="why">The day as an open circle, with a dot marking where you are in it. The gap says the day isn’t finished — which is the whole idea of the app.</p>
+        <div class="tag">Calm · abstract · scales best</div>
+      </div>
+    </article>
+
+    <!-- 2 ───────────────────────────────────────────────── -->
+    <article class="card">
+      <div class="hero">
+        <div class="tile-lg">
+          <svg viewBox="0 0 100 100" aria-label="Flow Lines mark">
+            <rect x="20" y="29" width="60" height="11" rx="5.5" fill="#fff"/>
+            <rect x="20" y="44.5" width="42" height="11" rx="5.5" fill="#fff" opacity=".82"/>
+            <rect x="20" y="60" width="52" height="11" rx="5.5" fill="#fff" opacity=".62"/>
+          </svg>
+        </div>
+      </div>
+      <div class="sizes">
+        <div class="t t-grad s56"><svg viewBox="0 0 100 100" aria-hidden="true"><rect x="20" y="29" width="60" height="12" rx="6" fill="#fff"/><rect x="20" y="44" width="42" height="12" rx="6" fill="#fff" opacity=".82"/><rect x="20" y="59" width="52" height="12" rx="6" fill="#fff" opacity=".62"/></svg></div>
+        <div class="t t-light s36"><svg viewBox="0 0 100 100" aria-hidden="true"><rect x="20" y="29" width="60" height="13" rx="6.5" fill="#5B5BD6"/><rect x="20" y="43.5" width="42" height="13" rx="6.5" fill="#5B5BD6" opacity=".75"/><rect x="20" y="58" width="52" height="13" rx="6.5" fill="#5B5BD6" opacity=".5"/></svg></div>
+        <div class="t t-dark s36"><svg viewBox="0 0 100 100" aria-hidden="true"><rect x="20" y="29" width="60" height="13" rx="6.5" fill="#8B8BF5"/><rect x="20" y="43.5" width="42" height="13" rx="6.5" fill="#8B8BF5" opacity=".75"/><rect x="20" y="58" width="52" height="13" rx="6.5" fill="#8B8BF5" opacity=".5"/></svg></div>
+        <div class="cap">56px<br>36px</div>
+      </div>
+      <div class="meta">
+        <div class="name"><span class="num">02</span><h2>Flow Lines</h2></div>
+        <p class="why">Three bars of unequal length — a list, read as rhythm rather than as tasks. The fading weight suggests things ahead of you, not behind.</p>
+        <div class="tag">Literal · friendly · list-forward</div>
+      </div>
+    </article>
+
+    <!-- 3 ───────────────────────────────────────────────── -->
+    <article class="card">
+      <div class="hero">
+        <div class="tile-lg">
+          <svg viewBox="0 0 100 100" aria-label="Sunrise mark">
+            <path d="M26 60 A24 24 0 0 1 74 60" fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round"/>
+            <path d="M17 72 H83" stroke="#fff" stroke-width="9" stroke-linecap="round"/>
+            <path d="M50 25 V16" stroke="#fff" stroke-width="8" stroke-linecap="round" opacity=".75"/>
+          </svg>
+        </div>
+      </div>
+      <div class="sizes">
+        <div class="t t-grad s56"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="M26 60 A24 24 0 0 1 74 60" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round"/><path d="M17 73 H83" stroke="#fff" stroke-width="10" stroke-linecap="round"/></svg></div>
+        <div class="t t-light s36"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="M26 60 A24 24 0 0 1 74 60" fill="none" stroke="#5B5BD6" stroke-width="11" stroke-linecap="round"/><path d="M17 74 H83" stroke="#5B5BD6" stroke-width="11" stroke-linecap="round"/></svg></div>
+        <div class="t t-dark s36"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="M26 60 A24 24 0 0 1 74 60" fill="none" stroke="#8B8BF5" stroke-width="11" stroke-linecap="round"/><path d="M17 74 H83" stroke="#8B8BF5" stroke-width="11" stroke-linecap="round"/></svg></div>
+        <div class="cap">56px<br>36px</div>
+      </div>
+      <div class="meta">
+        <div class="name"><span class="num">03</span><h2>Sunrise</h2></div>
+        <p class="why">The most human of the eight, and the one a person with low literacy reads instantly: a new day. Warmest option, least “software”.</p>
+        <div class="tag">Concrete · universal · warm</div>
+      </div>
+    </article>
+
+    <!-- 4 ───────────────────────────────────────────────── -->
+    <article class="card">
+      <div class="hero">
+        <div class="tile-lg">
+          <svg viewBox="0 0 100 100" aria-label="Flow S mark">
+            <path d="M32 30 C32 18, 72 20, 70 36 C68 52, 32 48, 30 64 C28 80, 68 82, 68 70"
+                  fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round"/>
+          </svg>
+        </div>
+      </div>
+      <div class="sizes">
+        <div class="t t-grad s56"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="M32 30 C32 18, 72 20, 70 36 C68 52, 32 48, 30 64 C28 80, 68 82, 68 70" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round"/></svg></div>
+        <div class="t t-light s36"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="M32 30 C32 18, 72 20, 70 36 C68 52, 32 48, 30 64 C28 80, 68 82, 68 70" fill="none" stroke="#5B5BD6" stroke-width="12" stroke-linecap="round"/></svg></div>
+        <div class="t t-dark s36"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="M32 30 C32 18, 72 20, 70 36 C68 52, 32 48, 30 64 C28 80, 68 82, 68 70" fill="none" stroke="#8B8BF5" stroke-width="12" stroke-linecap="round"/></svg></div>
+        <div class="cap">56px<br>36px</div>
+      </div>
+      <div class="meta">
+        <div class="name"><span class="num">04</span><h2>Current</h2></div>
+        <p class="why">A single unbroken stroke that doubles as an “S” for flow. The most distinctive mark here, and the one that would age best as a brand.</p>
+        <div class="tag">Distinctive · fluid · brandable</div>
+      </div>
+    </article>
+
+    <!-- 5 ───────────────────────────────────────────────── -->
+    <article class="card">
+      <div class="hero">
+        <div class="tile-lg">
+          <svg viewBox="0 0 100 100" aria-label="Checkpoint mark">
+            <circle cx="50" cy="50" r="31" fill="none" stroke="#fff" stroke-width="9" opacity=".55"/>
+            <path d="M35 51 L46 62 L67 39" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+      </div>
+      <div class="sizes">
+        <div class="t t-grad s56"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="31" fill="none" stroke="#fff" stroke-width="9" opacity=".55"/><path d="M35 51 L46 62 L67 39" fill="none" stroke="#fff" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="t t-light s36"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="31" fill="none" stroke="#5B5BD6" stroke-width="9" opacity=".4"/><path d="M35 51 L46 62 L67 39" fill="none" stroke="#5B5BD6" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="t t-dark s36"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="31" fill="none" stroke="#8B8BF5" stroke-width="9" opacity=".4"/><path d="M35 51 L46 62 L67 39" fill="none" stroke="#8B8BF5" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="cap">56px<br>36px</div>
+      </div>
+      <div class="meta">
+        <div class="name"><span class="num">05</span><h2>Checkpoint</h2></div>
+        <p class="why">Says “done” in every language. The safest, clearest choice — at the cost of looking like a to-do app, which is the one thing DailyFlow isn’t.</p>
+        <div class="tag">Clearest · but generic</div>
+      </div>
+    </article>
+
+    <!-- 6 ───────────────────────────────────────────────── -->
+    <article class="card">
+      <div class="hero">
+        <div class="tile-lg">
+          <svg viewBox="0 0 100 100" aria-label="Day Shape mark">
+            <rect x="17" y="52" width="11" height="20" rx="5.5" fill="#fff" opacity=".55"/>
+            <rect x="34" y="38" width="11" height="34" rx="5.5" fill="#fff" opacity=".78"/>
+            <rect x="51" y="26" width="11" height="46" rx="5.5" fill="#fff"/>
+            <rect x="68" y="44" width="11" height="28" rx="5.5" fill="#fff" opacity=".66"/>
+          </svg>
+        </div>
+      </div>
+      <div class="sizes">
+        <div class="t t-grad s56"><svg viewBox="0 0 100 100" aria-hidden="true"><rect x="17" y="52" width="12" height="20" rx="6" fill="#fff" opacity=".55"/><rect x="34" y="38" width="12" height="34" rx="6" fill="#fff" opacity=".78"/><rect x="51" y="26" width="12" height="46" rx="6" fill="#fff"/><rect x="68" y="44" width="12" height="28" rx="6" fill="#fff" opacity=".66"/></svg></div>
+        <div class="t t-light s36"><svg viewBox="0 0 100 100" aria-hidden="true"><rect x="17" y="52" width="13" height="20" rx="6.5" fill="#5B5BD6" opacity=".45"/><rect x="34" y="38" width="13" height="34" rx="6.5" fill="#5B5BD6" opacity=".7"/><rect x="51" y="26" width="13" height="46" rx="6.5" fill="#5B5BD6"/><rect x="68" y="44" width="13" height="28" rx="6.5" fill="#5B5BD6" opacity=".58"/></svg></div>
+        <div class="t t-dark s36"><svg viewBox="0 0 100 100" aria-hidden="true"><rect x="17" y="52" width="13" height="20" rx="6.5" fill="#8B8BF5" opacity=".45"/><rect x="34" y="38" width="13" height="34" rx="6.5" fill="#8B8BF5" opacity=".7"/><rect x="51" y="26" width="13" height="46" rx="6.5" fill="#8B8BF5"/><rect x="68" y="44" width="13" height="28" rx="6.5" fill="#8B8BF5" opacity=".58"/></svg></div>
+        <div class="cap">56px<br>36px</div>
+      </div>
+      <div class="meta">
+        <div class="name"><span class="num">06</span><h2>Day Shape</h2></div>
+        <p class="why">Four bars rising and falling — morning, midday, evening, night. Reads as the shape of a day rather than as a chart.</p>
+        <div class="tag">Rhythmic · modern · energetic</div>
+      </div>
+    </article>
+
+    <!-- 7 ───────────────────────────────────────────────── -->
+    <article class="card">
+      <div class="hero">
+        <div class="tile-lg">
+          <svg viewBox="0 0 100 100" aria-label="Orbit mark">
+            <ellipse cx="50" cy="50" rx="35" ry="15" fill="none" stroke="#fff" stroke-width="7.5" opacity=".62" transform="rotate(-28 50 50)"/>
+            <circle cx="50" cy="50" r="12.5" fill="#fff"/>
+          </svg>
+        </div>
+      </div>
+      <div class="sizes">
+        <div class="t t-grad s56"><svg viewBox="0 0 100 100" aria-hidden="true"><ellipse cx="50" cy="50" rx="35" ry="15" fill="none" stroke="#fff" stroke-width="8" opacity=".62" transform="rotate(-28 50 50)"/><circle cx="50" cy="50" r="13" fill="#fff"/></svg></div>
+        <div class="t t-light s36"><svg viewBox="0 0 100 100" aria-hidden="true"><ellipse cx="50" cy="50" rx="35" ry="15" fill="none" stroke="#5B5BD6" stroke-width="9" opacity=".45" transform="rotate(-28 50 50)"/><circle cx="50" cy="50" r="14" fill="#5B5BD6"/></svg></div>
+        <div class="t t-dark s36"><svg viewBox="0 0 100 100" aria-hidden="true"><ellipse cx="50" cy="50" rx="35" ry="15" fill="none" stroke="#8B8BF5" stroke-width="9" opacity=".45" transform="rotate(-28 50 50)"/><circle cx="50" cy="50" r="14" fill="#8B8BF5"/></svg></div>
+        <div class="cap">56px<br>36px</div>
+      </div>
+      <div class="meta">
+        <div class="name"><span class="num">07</span><h2>Orbit</h2></div>
+        <p class="why">You at the centre, your places and routines circling you. The most literal expression of “context-aware”, and the most dimensional of the set.</p>
+        <div class="tag">Conceptual · dimensional</div>
+      </div>
+    </article>
+
+    <!-- 8 ───────────────────────────────────────────────── -->
+    <article class="card">
+      <div class="hero">
+        <div class="tile-lg">
+          <svg viewBox="0 0 100 100" aria-label="Onward mark">
+            <path d="M28 32 L46 50 L28 68" fill="none" stroke="#fff" stroke-width="9.5" stroke-linecap="round" stroke-linejoin="round" opacity=".5"/>
+            <path d="M50 32 L68 50 L50 68" fill="none" stroke="#fff" stroke-width="9.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+      </div>
+      <div class="sizes">
+        <div class="t t-grad s56"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="M28 32 L46 50 L28 68" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" opacity=".5"/><path d="M50 32 L68 50 L50 68" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="t t-light s36"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="M28 32 L46 50 L28 68" fill="none" stroke="#5B5BD6" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" opacity=".4"/><path d="M50 32 L68 50 L50 68" fill="none" stroke="#5B5BD6" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="t t-dark s36"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="M28 32 L46 50 L28 68" fill="none" stroke="#8B8BF5" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" opacity=".4"/><path d="M50 32 L68 50 L50 68" fill="none" stroke="#8B8BF5" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="cap">56px<br>36px</div>
+      </div>
+      <div class="meta">
+        <div class="name"><span class="num">08</span><h2>Onward</h2></div>
+        <p class="why">Two chevrons: what’s next, then what follows. Direct and confident, though it borrows a gesture a lot of apps already use.</p>
+        <div class="tag">Direct · familiar</div>
+      </div>
+    </article>
+
+  </div>
+</div>
