@@ -39,7 +39,7 @@ export default function ListsScreen() {
         />
       ) : (
         checklists.map((list, i) => (
-          <Animated.View key={list.id} entering={FadeInDown.delay(i * 40).duration(300)}>
+          <Animated.View key={list.id} entering={FadeInDown.delay(Math.min(i, 5) * 28).springify().damping(18).stiffness(140)}>
             <PressableScale onPress={() => router.push(`/list/${list.id}`)} depth="sm">
               <Card style={styles.card}>
                 <IconBadge name={(list.icon as IconName) ?? 'list'} />

@@ -9,6 +9,7 @@ import { Icon, IconBadge, type IconName } from '@/components/ui/Icon'
 import { PressableScale } from '@/components/ui/PressableScale'
 import { Button } from '@/components/ui/Button'
 import { ChecklistCard } from '@/components/today/ChecklistCard'
+import { CountdownRing, describeWait } from '@/components/today/CountdownRing'
 import { PermissionCard } from '@/components/ui/PermissionCard'
 import { WelcomeCard } from '@/components/today/WelcomeCard'
 import { useCapabilities } from '@/hooks/useCapabilities'
@@ -18,7 +19,7 @@ import { useClock } from '@/hooks/useClock'
 import { buildToday } from '@/lib/today'
 import { markOnboarded } from '@/lib/data/seed'
 import { EXPO_GO_LIMITATION } from '@/lib/runtime'
-import { formatTime, toHHMM } from '@/lib/time'
+import { formatTime, minutesOfDay, toHHMM } from '@/lib/time'
 import { space, radius } from '@/theme/tokens'
 import { useColors } from '@/theme/ThemeProvider'
 import { S } from '@/lib/strings'
@@ -60,6 +61,7 @@ export default function TodayScreen() {
   )
 
   const focus = model.current ?? model.next
+  const minutesAway = focus ? focus.startsAtMinutes - minutesOfDay(now) : 0
 
   // Ask about reminders only once there is a plan that would actually send one. Before
   // that the permission has no purpose, and asking would be the nagging we promised to avoid.
@@ -73,7 +75,7 @@ export default function TodayScreen() {
   return (
     <Screen>
       {/* Greeting */}
-      <Animated.View entering={FadeInDown.duration(320)} style={styles.greeting}>
+      <Animated.View entering={FadeInDown.springify().damping(18).stiffness(140)} style={styles.greeting}>
         <Text variant="display">{S.today[model.greeting]}</Text>
         <Text variant="body" tone="muted">{dateLabel}</Text>
       </Animated.View>
@@ -109,23 +111,35 @@ export default function TodayScreen() {
 
       {/* What is happening now / next */}
       {focus ? (
-        <Animated.View entering={FadeInDown.delay(60).duration(320)}>
+        <Animated.View entering={FadeInDown.delay(60).springify().damping(18).stiffness(140)}>
           <Card tone="hero" style={{ marginBottom: space.lg }}>
-            <Text variant="label" style={{ color: c.onAccent, opacity: 0.75 }}>
+            <Text variant="label" style={{ color: c.onAccent, opacity: 0.78 }}>
               {focus.status === 'now' ? S.today.now : S.today.next}
             </Text>
+
             <View style={styles.heroRow}>
-              <Text variant="title" style={{ color: c.onAccent, flex: 1 }}>
-                {focus.routine.name}
-              </Text>
-              <Text variant="title" style={{ color: c.onAccent }}>
-                {formatTime(toHHMM(focus.startsAtMinutes), use24h, locale)}
-              </Text>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text variant="title" style={{ color: c.onAccent }} numberOfLines={2}>
+                  {focus.routine.name}
+                </Text>
+                {/* How long away, in words. The literal time stays below it, but nobody
+                    should have to subtract to find out when they need to move. */}
+                <Text variant="body" style={{ color: c.onAccent, opacity: 0.9 }}>
+                  {describeWait(minutesAway)} · {formatTime(toHHMM(focus.startsAtMinutes), use24h, locale)}
+                </Text>
+              </View>
+
+              <CountdownRing
+                minutesAway={minutesAway}
+                color={c.onAccent}
+                trackColor={c.onAccent}
+              />
             </View>
+
             {focus.destination ? (
               <View style={styles.heroMeta}>
-                <Icon name="forward" size={16} color={c.onAccent} />
-                <Text variant="caption" style={{ color: c.onAccent, opacity: 0.85 }}>
+                <Icon name="arrive" size={16} color={c.onAccent} />
+                <Text variant="caption" style={{ color: c.onAccent, opacity: 0.88 }}>
                   {focus.destination.name}
                 </Text>
               </View>
@@ -136,8 +150,8 @@ export default function TodayScreen() {
 
       {/* What to remember */}
       {model.checklists.length > 0 ? (
-        <Animated.View entering={FadeInDown.delay(120).duration(320)}>
-          <Text variant="label" tone="muted" style={styles.sectionTitle}>
+        <Animated.View entering={FadeInDown.delay(120).springify().damping(18).stiffness(140)}>
+          <Text variant="heading" style={styles.sectionTitle}>
             {S.today.takeWithYou}
           </Text>
           {model.checklists.map((entry) => (
@@ -152,8 +166,8 @@ export default function TodayScreen() {
 
       {/* The rest of the day */}
       {model.entries.length > 0 ? (
-        <Animated.View entering={FadeInDown.delay(180).duration(320)}>
-          <Text variant="label" tone="muted" style={styles.sectionTitle}>
+        <Animated.View entering={FadeInDown.delay(180).springify().damping(18).stiffness(140)}>
+          <Text variant="heading" style={styles.sectionTitle}>
             {S.nav.today}
           </Text>
           <Card padded={false} style={{ paddingVertical: space.xs }}>
@@ -192,7 +206,7 @@ export default function TodayScreen() {
 
       {/* Free day — an invitation, never an error */}
       {model.isFreeDay && model.checklists.length === 0 ? (
-        <Animated.View entering={FadeInDown.delay(120).duration(320)}>
+        <Animated.View entering={FadeInDown.delay(120).springify().damping(18).stiffness(140)}>
           <Card style={styles.empty}>
             <IconBadge name="sparkle" plate={56} size={26} />
             <Text variant="heading" center style={{ marginTop: space.lg }}>
@@ -216,12 +230,10 @@ export default function TodayScreen() {
 
 const styles = StyleSheet.create({
   greeting: { marginBottom: space['2xl'], gap: space.xs },
-  heroRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginTop: space.xs },
+  heroRow: { flexDirection: 'row', alignItems: 'center', gap: space.lg, marginTop: space.sm },
   heroMeta: { flexDirection: 'row', alignItems: 'center', gap: space.xs, marginTop: space.sm },
   sectionTitle: {
-    textTransform: 'uppercase',
-    letterSpacing: 0.9,
-    marginBottom: space.md,
+        marginBottom: space.md,
     marginTop: space.sm,
   },
   timelineRow: {

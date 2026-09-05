@@ -43,7 +43,7 @@ export default function PlansScreen() {
         />
       ) : (
         routines.map((r, i) => (
-          <Animated.View key={r.id} entering={FadeInDown.delay(i * 40).duration(300)}>
+          <Animated.View key={r.id} entering={FadeInDown.delay(Math.min(i, 5) * 28).springify().damping(18).stiffness(140)}>
             <PressableScale onPress={() => router.push(`/plan/${r.id}`)} depth="sm">
               <Card style={[styles.card, !r.enabled && { opacity: 0.55 }]}>
                 <IconBadge name={(r.icon as IconName) ?? 'repeat'} />

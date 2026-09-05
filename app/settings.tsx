@@ -94,7 +94,7 @@ export default function SettingsScreen() {
       <DetailHeader title={S.settings.title} />
 
       {/* Look */}
-      <Text variant="label" tone="muted" style={styles.section}>{S.settings.look}</Text>
+      <Text variant="heading" style={styles.section}>{S.settings.look}</Text>
       <View style={styles.themeRow}>
         {themes.map((t) => {
           const active = preference === t.key
@@ -134,7 +134,7 @@ export default function SettingsScreen() {
       </View>
 
       {/* Reminders */}
-      <Text variant="label" tone="muted" style={styles.section}>{S.reminder.title}</Text>
+      <Text variant="heading" style={styles.section}>{S.reminder.title}</Text>
       <View style={{ gap: space.sm, marginBottom: space.xl }}>
         <Toggle
           label={S.settings.vibrate}
@@ -166,7 +166,7 @@ export default function SettingsScreen() {
       </View>
 
       {/* Your things */}
-      <Text variant="label" tone="muted" style={styles.section}>{S.settings.yourData}</Text>
+      <Text variant="heading" style={styles.section}>{S.settings.yourData}</Text>
       <View style={{ gap: space.sm, marginBottom: space.xl }}>
         <RowLink
           icon="save"
@@ -241,7 +241,7 @@ function RowLink({
 }
 
 const styles = StyleSheet.create({
-  section: { textTransform: 'uppercase', letterSpacing: 0.9, marginBottom: space.sm },
+  section: { marginBottom: space.sm },
   themeRow: { flexDirection: 'row', gap: space.sm },
   theme: {
     flex: 1, minHeight: 76, borderRadius: radius.lg,

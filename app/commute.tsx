@@ -122,7 +122,7 @@ export default function CommuteScreen() {
       {/* Your list stays one tap away while travelling */}
       {model.checklists.length > 0 ? (
         <View style={{ marginTop: space['2xl'] }}>
-          <Text variant="label" tone="muted" style={styles.section}>
+          <Text variant="heading" style={styles.section}>
             {S.today.takeWithYou}
           </Text>
           {model.checklists.map((entry) => (
@@ -141,5 +141,5 @@ export default function CommuteScreen() {
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   heroMeta: { flexDirection: 'row', alignItems: 'center', gap: space.xs, marginTop: space.md },
-  section: { textTransform: 'uppercase', letterSpacing: 0.9, marginBottom: space.md },
+  section: { marginBottom: space.md },
 })

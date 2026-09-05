@@ -74,7 +74,7 @@ export default function PlacesScreen() {
         />
       ) : (
         places.map((place, i) => (
-          <Animated.View key={place.id} entering={FadeInDown.delay(i * 40).duration(300)}>
+          <Animated.View key={place.id} entering={FadeInDown.delay(Math.min(i, 5) * 28).springify().damping(18).stiffness(140)}>
             <PressableScale onPress={() => router.push(`/place/${place.id}`)} depth="sm">
               <Card style={styles.card}>
                 <IconBadge name={(place.icon as IconName) ?? 'place'} />

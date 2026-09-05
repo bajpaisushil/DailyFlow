@@ -19,13 +19,18 @@ interface Props extends TextProps {
   center?: boolean
 }
 
+/**
+ * Optical tracking tightens as size grows — large text set at neutral tracking reads loose,
+ * small text set tight reads cramped. `label` and `caption` share a size on purpose and are
+ * told apart by weight, which is why 600 was removed from the scale (see tokens.ts).
+ */
 const VARIANTS: Record<TextVariant, TextStyle> = {
-  display: { fontSize: font['3xl'], fontWeight: weight.bold, letterSpacing: -0.8, lineHeight: font['3xl'] * 1.15 },
-  title: { fontSize: font['2xl'], fontWeight: weight.bold, letterSpacing: -0.5, lineHeight: font['2xl'] * 1.2 },
-  heading: { fontSize: font.lg, fontWeight: weight.semibold, letterSpacing: -0.2, lineHeight: font.lg * 1.3 },
-  body: { fontSize: font.base, fontWeight: weight.regular, lineHeight: font.base * 1.45 },
+  display: { fontSize: font['3xl'], fontWeight: weight.bold, letterSpacing: -1.0, lineHeight: font['3xl'] * 1.12 },
+  title: { fontSize: font['2xl'], fontWeight: weight.bold, letterSpacing: -0.6, lineHeight: font['2xl'] * 1.18 },
+  heading: { fontSize: font.lg, fontWeight: weight.semibold, letterSpacing: -0.3, lineHeight: font.lg * 1.28 },
+  body: { fontSize: font.base, fontWeight: weight.regular, letterSpacing: -0.1, lineHeight: font.base * 1.45 },
   label: { fontSize: font.sm, fontWeight: weight.semibold, lineHeight: font.sm * 1.3 },
-  caption: { fontSize: font.sm, fontWeight: weight.regular, lineHeight: font.sm * 1.4 },
+  caption: { fontSize: font.sm, fontWeight: weight.regular, lineHeight: font.sm * 1.42 },
 }
 
 /**

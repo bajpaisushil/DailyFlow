@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { palettes, type Palette } from './palettes.ts'
+import { families, FAMILY_KEYS, familyForIcon, palettes, type Palette } from './palettes.ts'
 
 /**
  * Contrast is a guarantee, not an aspiration.
@@ -139,5 +139,46 @@ describe('accent gradient', () => {
       const delta = Math.abs(luminance(p.accentFrom) - luminance(p.accentTo))
       assert.ok(delta < 0.25, `${scheme} gradient luminance travel ${delta.toFixed(3)} is too wide`)
     }
+  })
+})
+
+describe('colour families', () => {
+  for (const scheme of ['light', 'dark'] as const) {
+    const p = palettes[scheme]
+
+    for (const key of FAMILY_KEYS) {
+      const pair = families[scheme][key]
+
+      it(`${scheme}/${key}: its icon reads on its own plate`, () => {
+        const ratio = contrast(pair.on, pair.soft)
+        assert.ok(ratio >= 4.5, `${key} on/soft: ${ratio.toFixed(2)}:1 is below AA`)
+      })
+
+      it(`${scheme}/${key}: its icon reads on a card`, () => {
+        const ratio = contrast(pair.on, p.surface)
+        assert.ok(ratio >= 4.5, `${key} on/surface: ${ratio.toFixed(2)}:1 is below AA`)
+      })
+
+      it(`${scheme}/${key}: the plate is distinguishable from the card it sits on`, () => {
+        // Plates render inside cards, so this is the pair that matters — not the page canvas.
+        const ratio = contrast(pair.soft, p.surface)
+        assert.ok(ratio >= 1.08, `${key} soft/surface: ${ratio.toFixed(3)}:1 is invisible`)
+      })
+    }
+  }
+
+  it('gives every family a distinct plate, or the whole point is lost', () => {
+    for (const scheme of ['light', 'dark'] as const) {
+      const softs = FAMILY_KEYS.map((k) => families[scheme][k].soft)
+      assert.equal(new Set(softs).size, softs.length, `${scheme} has duplicate plates`)
+    }
+  })
+
+  it('maps icons to families by meaning, not by hash', () => {
+    // A hash gives a shop and a hospital the same colour as often as not. These should differ.
+    assert.notEqual(familyForIcon('shop'), familyForIcon('hospital'))
+    assert.equal(familyForIcon('work'), 'indigo')
+    assert.equal(familyForIcon('metro'), familyForIcon('bus'))
+    assert.equal(familyForIcon('something-unknown'), 'slate')
   })
 })

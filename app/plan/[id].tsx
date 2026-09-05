@@ -132,7 +132,7 @@ export default function PlanEditor() {
       />
 
       {/* Name */}
-      <Text variant="label" tone="muted" style={styles.section}>What is it called?</Text>
+      <Text variant="heading" style={styles.section}>What is it called?</Text>
       <View style={styles.chips}>
         {NAME_SUGGESTIONS.map((suggestion) => (
           <PressableScale
@@ -165,19 +165,19 @@ export default function PlanEditor() {
       </Card>
 
       {/* Picture */}
-      <Text variant="label" tone="muted" style={styles.section}>Picture</Text>
+      <Text variant="heading" style={styles.section}>Picture</Text>
       <View style={{ marginBottom: space.xl }}>
         <IconPicker value={icon} onChange={(i) => setIcon(i)} set="plan" />
       </View>
 
       {/* Days */}
-      <Text variant="label" tone="muted" style={styles.section}>{S.plan.whichDays}</Text>
+      <Text variant="heading" style={styles.section}>{S.plan.whichDays}</Text>
       <View style={{ marginBottom: space.xl }}>
         <DayPicker value={days} onChange={setDays} />
       </View>
 
       {/* Time */}
-      <Text variant="label" tone="muted" style={styles.section}>{S.plan.whatTime}</Text>
+      <Text variant="heading" style={styles.section}>{S.plan.whatTime}</Text>
       <View style={{ marginBottom: space.xl }}>
         <TimePicker value={time} onChange={setTime} />
       </View>
@@ -185,7 +185,7 @@ export default function PlanEditor() {
       {/* Lists to take */}
       {checklists.length > 0 ? (
         <>
-          <Text variant="label" tone="muted" style={styles.section}>{S.plan.takeWith}</Text>
+          <Text variant="heading" style={styles.section}>{S.plan.takeWith}</Text>
           <View style={{ gap: space.sm, marginBottom: space.xl }}>
             {checklists.map((list) => {
               const active = listIds.includes(list.id)
@@ -221,7 +221,7 @@ export default function PlanEditor() {
       {/* Where — only offered once places exist, so the screen stays short for new users */}
       {places.length > 0 ? (
         <>
-          <Text variant="label" tone="muted" style={styles.section}>{S.plan.toWhere}</Text>
+          <Text variant="heading" style={styles.section}>{S.plan.toWhere}</Text>
           <View style={styles.chips}>
             {places.map((p) => {
               const active = destinationId === p.id
@@ -253,7 +253,7 @@ export default function PlanEditor() {
       ) : null}
 
       {/* What DailyFlow should tell you */}
-      <Text variant="label" tone="muted" style={[styles.section, { marginTop: space.lg }]}>
+      <Text variant="heading" style={[styles.section, { marginTop: space.lg }]}>
         {S.plan.tellMe}
       </Text>
       <View style={{ gap: space.sm }}>
@@ -308,7 +308,7 @@ export default function PlanEditor() {
 }
 
 const styles = StyleSheet.create({
-  section: { textTransform: 'uppercase', letterSpacing: 0.9, marginBottom: space.sm },
+  section: { marginBottom: space.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginBottom: space.md },
   chip: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',

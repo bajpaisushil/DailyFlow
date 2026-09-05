@@ -35,8 +35,15 @@ export const font = {
   xs: 13, sm: 15, base: 17, lg: 19, xl: 22, '2xl': 27, '3xl': 34, '4xl': 42,
 } as const
 
+/**
+ * Weight 600 is deliberately absent. React Native maps numeric weights through the platform
+ * font, and on Android below API 28 a 600 collapses unpredictably toward 500 or 700 — so a
+ * hierarchy built on it is not reliably rendered at all. 400 / 500 / 700 are the three that
+ * survive everywhere, which is why `label` and `caption` (both 15px) are separated by 700-vs-400
+ * rather than by a weight that may not exist on the device.
+ */
 export const weight = {
-  regular: '400', medium: '500', semibold: '600', bold: '700',
+  regular: '400', medium: '500', semibold: '700', bold: '700',
 } as const
 
 /** Minimum comfortable touch target. Nothing interactive may be smaller. */
@@ -50,12 +57,20 @@ export function elevation(level: 0 | 1 | 2 | 3, scheme: Scheme) {
   if (level === 0) return {}
   const isDark = scheme === 'dark'
   const color = palettes[scheme].shadowColor
-  // Wide, low-opacity shadows: the surface should look like it is resting on the page
-  // rather than cut out of it. Depth replaces borders entirely.
+  /**
+   * Contact shadows, not blurs.
+   *
+   * These used to be very wide and very faint (5% over 18pt), which reads as haze rather than
+   * as an edge — a card looked painted on rather than resting on the page. Level 1 is now
+   * tighter and darker so it behaves like the shadow an object actually casts where it meets
+   * a surface. The Android elevations came down at the same time: light mode was drawing a
+   * Material shadow at elevation 3 while iOS drew 5%, so the two platforms did not look like
+   * the same app.
+   */
   const specs = {
-    1: { o: isDark ? 0.40 : 0.05, r: 18, y: 6, e: 3 },
-    2: { o: isDark ? 0.50 : 0.08, r: 32, y: 14, e: 8 },
-    3: { o: isDark ? 0.62 : 0.12, r: 52, y: 24, e: 16 },
+    1: { o: isDark ? 0.40 : 0.09, r: 14, y: 4, e: 1 },
+    2: { o: isDark ? 0.50 : 0.14, r: 28, y: 12, e: 4 },
+    3: { o: isDark ? 0.62 : 0.20, r: 46, y: 22, e: 10 },
   }[level]
   return Platform.select({
     ios: {

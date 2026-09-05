@@ -84,7 +84,7 @@ export default function ListEditor() {
       />
 
       {/* Name */}
-      <Text variant="label" tone="muted" style={styles.section}>{S.place.nameIt}</Text>
+      <Text variant="heading" style={styles.section}>{S.place.nameIt}</Text>
       <Card tone="flat" padded={false} style={{ marginBottom: space.xl }}>
         <TextInput
           value={name}
@@ -98,13 +98,13 @@ export default function ListEditor() {
       </Card>
 
       {/* Picture */}
-      <Text variant="label" tone="muted" style={styles.section}>Picture</Text>
+      <Text variant="heading" style={styles.section}>Picture</Text>
       <View style={{ marginBottom: space.xl }}>
         <IconPicker value={icon} onChange={(i) => setIcon(i)} set="thing" />
       </View>
 
       {/* Things */}
-      <Text variant="label" tone="muted" style={styles.section}>{S.list.things}</Text>
+      <Text variant="heading" style={styles.section}>{S.list.things}</Text>
       <Card padded={false} style={{ paddingVertical: space.sm, marginBottom: space.lg }}>
         {items.length === 0 ? (
           <Text variant="caption" tone="faint" center style={{ padding: space.xl }}>
@@ -206,7 +206,7 @@ function guessIcon(label: string): IconName {
 }
 
 const styles = StyleSheet.create({
-  section: { textTransform: 'uppercase', letterSpacing: 0.9, marginBottom: space.sm },
+  section: { marginBottom: space.sm },
   input: { fontSize: font.base, paddingHorizontal: space.lg, paddingVertical: space.lg, minHeight: 52 },
   itemRow: {
     flexDirection: 'row', alignItems: 'center', gap: space.md,

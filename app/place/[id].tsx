@@ -124,7 +124,7 @@ export default function PlaceEditor() {
       {/* Where. Three ways in, because one size does not fit every situation:
           standing there (GPS, works offline), knowing the name (search), or
           recognising it on a map (needs a development build). */}
-      <Text variant="label" tone="muted" style={styles.section}>{S.place.whereAreYou}</Text>
+      <Text variant="heading" style={styles.section}>{S.place.whereAreYou}</Text>
       <Card style={{ marginBottom: space.xl }}>
         {fix ? (
           <Animated.View entering={FadeIn} style={styles.gotFix}>
@@ -195,7 +195,7 @@ export default function PlaceEditor() {
       ) : null}
 
       {/* How close — named options with help text, never metres */}
-      <Text variant="label" tone="muted" style={styles.section}>{S.place.howClose}</Text>
+      <Text variant="heading" style={styles.section}>{S.place.howClose}</Text>
       <View style={{ gap: space.sm, marginBottom: space.xl }}>
         {RADIUS_CHOICES.map((choice) => {
           const active = preset === choice.key
@@ -237,7 +237,7 @@ export default function PlaceEditor() {
       </View>
 
       {/* Name — suggestions first, typing as a fallback */}
-      <Text variant="label" tone="muted" style={styles.section}>{S.place.nameIt}</Text>
+      <Text variant="heading" style={styles.section}>{S.place.nameIt}</Text>
       <View style={styles.chips}>
         {NAME_SUGGESTIONS.map((suggestion) => (
           <PressableScale
@@ -271,7 +271,7 @@ export default function PlaceEditor() {
       </Card>
 
       {/* Picture */}
-      <Text variant="label" tone="muted" style={styles.section}>Picture</Text>
+      <Text variant="heading" style={styles.section}>Picture</Text>
       <IconPicker value={icon} onChange={(i) => setIcon(i)} set="place" />
 
       {!isNew && existing ? (
@@ -292,7 +292,7 @@ export default function PlaceEditor() {
 }
 
 const styles = StyleSheet.create({
-  section: { textTransform: 'uppercase', letterSpacing: 0.9, marginBottom: space.sm },
+  section: { marginBottom: space.sm },
   gotFix: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginBottom: space.lg },
   choice: { flexDirection: 'row', alignItems: 'center', gap: space.lg },
   ring: { borderWidth: 2.5, borderRadius: 999 },

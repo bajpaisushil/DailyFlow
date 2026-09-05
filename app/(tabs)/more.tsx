@@ -41,7 +41,7 @@ export default function MoreScreen() {
       <ScreenHeader title={S.nav.more} />
 
       {ENTRIES.map((e, i) => (
-        <Animated.View key={e.href} entering={FadeInDown.delay(i * 40).duration(300)}>
+        <Animated.View key={e.href} entering={FadeInDown.delay(Math.min(i, 5) * 28).springify().damping(18).stiffness(140)}>
           <PressableScale onPress={() => router.push(e.href as never)} depth="sm">
             <Card style={styles.card}>
               <IconBadge name={e.icon} />

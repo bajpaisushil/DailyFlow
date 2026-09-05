@@ -53,7 +53,7 @@ export default function RemindersScreen() {
             : undefined
 
           return (
-            <Animated.View key={automation.id} entering={FadeInDown.delay(i * 40).duration(300)}>
+            <Animated.View key={automation.id} entering={FadeInDown.delay(Math.min(i, 5) * 28).springify().damping(18).stiffness(140)}>
               <Card style={{ marginBottom: space.md, opacity: automation.enabled ? 1 : 0.55 }}>
                 <View style={styles.header}>
                   <IconBadge name={(automation.icon as IconName) ?? 'bell'} plate={40} size={20} />
@@ -100,7 +100,7 @@ export default function RemindersScreen() {
 function Part({ label, value, tint, bg }: { label: string; value: string; tint: string; bg: string }) {
   return (
     <View style={[styles.part, { backgroundColor: bg }]}>
-      <Text variant="label" style={{ color: tint, fontSize: 11.5, textTransform: 'uppercase', letterSpacing: 0.7 }}>
+      <Text variant="label" style={{ color: tint, fontSize: 11.5,  letterSpacing: 0.7 }}>
         {label}
       </Text>
       <Text variant="body" style={{ flex: 1 }}>{value}</Text>

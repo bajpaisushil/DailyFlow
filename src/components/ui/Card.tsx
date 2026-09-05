@@ -55,6 +55,22 @@ export function Card({ children, tone = 'raised', level = 1, padded = true, styl
 
   return (
     <View style={[base, toneStyle, tone === 'raised' ? elevation(level, scheme) : undefined, style]}>
+      {/* A hairline of light along the top edge. In dark mode this is what replaces the
+          border we removed — a raised surface catches light where it turns away from the
+          viewer. Skipped in light mode, where on a near-white card it is invisible anyway. */}
+      {tone === 'raised' && scheme === 'dark' ? (
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: radius.card,
+            right: radius.card,
+            height: StyleSheet.hairlineWidth,
+            backgroundColor: 'rgba(255,255,255,0.08)',
+          }}
+        />
+      ) : null}
       {children}
     </View>
   )

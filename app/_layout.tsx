@@ -8,6 +8,7 @@ import React, { useEffect } from 'react'
 import { Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
+import { ReducedMotionConfig, ReduceMotion } from 'react-native-reanimated'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { ThemeProvider, useTheme } from '@/theme/ThemeProvider'
 import { seedIfFirstRun } from '@/lib/data/seed'
@@ -38,6 +39,12 @@ function Shell() {
         }}
       >
         <Stack.Screen name="(tabs)" />
+        {/* Creating something is a modal: it is a self-contained task with a clear end, it
+            gets a native swipe-to-dismiss for free, and it stops the create flows looking
+            like another destination in the same flat hierarchy. */}
+        <Stack.Screen name="place/[id]" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="plan/[id]" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="list/[id]" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
       </Stack>
     </>
   )
@@ -52,6 +59,9 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
+        {/* Honour the OS reduce-motion setting globally, rather than per-animation.
+            It configures Reanimated rather than wrapping the tree, so it is a sibling. */}
+        <ReducedMotionConfig mode={ReduceMotion.System} />
         <ThemeProvider>
           <Shell />
         </ThemeProvider>

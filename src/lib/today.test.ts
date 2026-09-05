@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildToday, phaseOf } from './today.ts'
+import { buildToday, describeWait, phaseOf } from './today.ts'
 import type { Checklist, ChecklistRun, Place, Routine } from './types.ts'
 
 /** Minimal fixtures — only the fields buildToday actually reads. */
@@ -113,5 +113,21 @@ describe('buildToday — what to remember', () => {
       checklists: [list],
     })
     assert.equal(model.checklists.some((c) => c.checklist.id === 'gym'), true)
+  })
+})
+
+describe('describeWait', () => {
+  it('never makes the reader do arithmetic', () => {
+    assert.equal(describeWait(0), 'Happening now')
+    assert.equal(describeWait(-5), 'Happening now')
+    assert.equal(describeWait(1), 'in 1 minutes')
+    assert.equal(describeWait(40), 'in 40 minutes')
+  })
+
+  it('switches to hours rather than printing 95 minutes', () => {
+    assert.equal(describeWait(60), 'in 1 hour')
+    assert.equal(describeWait(95), 'in 1 hour 35 min')
+    assert.equal(describeWait(120), 'in 2 hours')
+    assert.equal(describeWait(150), 'in 2 hours 30 min')
   })
 })

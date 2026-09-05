@@ -147,3 +147,19 @@ export function buildToday(input: {
     isFreeDay: entries.length === 0,
   }
 }
+
+/**
+ * How long until something, in words.
+ *
+ * Kept beside the Today model rather than in the component so the wording is testable and so
+ * there is exactly one phrasing of this in the app. Never a bare minute count above an hour:
+ * "in 95 minutes" is arithmetic, "in 1 hour 35 min" is not.
+ */
+export function describeWait(minutesAway: number): string {
+  if (minutesAway <= 0) return 'Happening now'
+  if (minutesAway < 60) return `in ${minutesAway} minutes`
+  const hours = Math.floor(minutesAway / 60)
+  const mins = minutesAway % 60
+  if (mins === 0) return hours === 1 ? 'in 1 hour' : `in ${hours} hours`
+  return hours === 1 ? `in 1 hour ${mins} min` : `in ${hours} hours ${mins} min`
+}
