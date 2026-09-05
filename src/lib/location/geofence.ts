@@ -2,6 +2,7 @@ import * as Location from 'expo-location'
 import * as TaskManager from 'expo-task-manager'
 import type { Automation, Place } from '@/lib/types'
 import * as repo from '@/lib/db/repo'
+import { supportsBackgroundGeofencing } from '@/lib/runtime'
 import { decide, record } from '@/lib/engine/governance'
 import { notifyNow } from '@/lib/notify/scheduler'
 import { localDateKey } from '@/lib/time'
@@ -30,21 +31,23 @@ const MAX_REGIONS = 18
  * Defined at module scope so it is registered during the cold start the OS performs when it
  * delivers a region event. Registering inside a component would be too late.
  */
-TaskManager.defineTask<{
-  eventType: Location.GeofencingEventType
-  region: Location.LocationRegion
-}>(GEOFENCE_TASK, async ({ data, error }) => {
-  if (error || !data?.region?.identifier) return
+if (supportsBackgroundGeofencing) {
+  TaskManager.defineTask<{
+    eventType: Location.GeofencingEventType
+    region: Location.LocationRegion
+  }>(GEOFENCE_TASK, async ({ data, error }) => {
+    if (error || !data?.region?.identifier) return
 
-  const entering = data.eventType === Location.GeofencingEventType.Enter
-  const placeId = data.region.identifier
+    const entering = data.eventType === Location.GeofencingEventType.Enter
+    const placeId = data.region.identifier
 
-  try {
-    await handleRegionEvent(placeId, entering)
-  } catch {
-    // A failure here must never crash the background task; the miss is simply not recorded.
-  }
-})
+    try {
+      await handleRegionEvent(placeId, entering)
+    } catch {
+      // A failure here must never crash the background task; the miss is simply not recorded.
+    }
+  })
+}
 
 /**
  * Runs in the background, possibly with no UI alive. It reads straight from SQLite rather
@@ -150,6 +153,12 @@ export interface GeofenceStatus {
  * Returns honestly when it could not start, so the UI can say so instead of implying it works.
  */
 export async function syncGeofences(): Promise<GeofenceStatus> {
+  // Expo Go cannot register background tasks. Report that honestly rather than appearing
+  // to start monitoring and then never firing.
+  if (!supportsBackgroundGeofencing) {
+    return { running: false, watched: 0, reason: 'unsupported' }
+  }
+
   const places = repo.places.all()
   const automations = repo.automations.all()
   const regions = regionsToWatch(places, automations)

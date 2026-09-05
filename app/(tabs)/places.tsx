@@ -11,6 +11,7 @@ import { PressableScale } from '@/components/ui/PressableScale'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { PermissionCard } from '@/components/ui/PermissionCard'
 import { useCapabilities } from '@/hooks/useCapabilities'
+import { EXPO_GO_LIMITATION, supportsBackgroundGeofencing } from '@/lib/runtime'
 import { useData } from '@/stores/data'
 import { describeRadius } from '@/lib/places'
 import { space } from '@/theme/tokens'
@@ -27,7 +28,10 @@ export default function PlacesScreen() {
   // Only ask once the user actually has a place to watch — the permission is meaningless
   // before that, and asking early is exactly the aggression we promised to avoid.
   const needsPlacePermission =
-    places.length > 0 && !caps.placesWorkWhenClosed && caps.location.background !== 'granted'
+    supportsBackgroundGeofencing &&
+    places.length > 0 &&
+    !caps.placesWorkWhenClosed &&
+    caps.location.background !== 'granted'
 
   return (
     <Screen>
@@ -37,6 +41,19 @@ export default function PlacesScreen() {
         onAdd={() => router.push('/place/new')}
         addLabel={S.place.addOne}
       />
+
+      {/* Expo Go genuinely cannot watch places in the background. Say so plainly rather
+          than offering a permission that would not help. */}
+      {!supportsBackgroundGeofencing && places.length > 0 ? (
+        <Card tone="flat" style={{ marginBottom: space.lg }}>
+          <View style={styles.notice}>
+            <Icon name="phoneOff" size={19} color={c.warn} />
+            <Text variant="caption" tone="muted" style={{ flex: 1 }}>
+              {EXPO_GO_LIMITATION}
+            </Text>
+          </View>
+        </Card>
+      ) : null}
 
       {needsPlacePermission ? (
         <PermissionCard
@@ -78,4 +95,5 @@ export default function PlacesScreen() {
 const styles = StyleSheet.create({
   card: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginBottom: space.md },
   text: { flex: 1, gap: 2 },
+  notice: { flexDirection: 'row', alignItems: 'center', gap: space.md },
 })

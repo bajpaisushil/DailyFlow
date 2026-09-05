@@ -1,4 +1,8 @@
 import { Platform } from 'react-native'
+import { palettes, type Scheme } from './palettes'
+
+export { palettes } from './palettes'
+export type { Palette, Scheme } from './palettes'
 
 /**
  * DailyFlow design tokens.
@@ -11,97 +15,6 @@ import { Platform } from 'react-native'
  * gradient accents, glass — while the *interaction* model stays flat and obvious, because
  * the app must be usable by people with low literacy (#17).
  */
-
-export type Scheme = 'light' | 'dark'
-
-export interface Palette {
-  /** Page background, furthest back. */
-  canvas: string
-  /** A slightly deeper canvas used for inset wells. */
-  canvasDeep: string
-  /** Raised card surface. */
-  surface: string
-  /** Secondary surface, one step further forward. */
-  surfaceAlt: string
-  /** Translucent fill used behind blur. */
-  glass: string
-  line: string
-  lineStrong: string
-  ink: string
-  inkMuted: string
-  inkFaint: string
-  accent: string
-  accentFrom: string
-  accentTo: string
-  accentSoft: string
-  onAccent: string
-  good: string
-  goodSoft: string
-  warn: string
-  warnSoft: string
-  bad: string
-  badSoft: string
-  /** Gradient stops for the hero/"now" surface. */
-  heroFrom: string
-  heroTo: string
-  shadowColor: string
-}
-
-const light: Palette = {
-  canvas: '#F4F5F9',
-  canvasDeep: '#E9EAF2',
-  surface: '#FFFFFF',
-  surfaceAlt: '#F8F9FC',
-  glass: 'rgba(255,255,255,0.72)',
-  line: '#E4E6EF',
-  lineStrong: '#D2D5E3',
-  ink: '#14151F',
-  inkMuted: '#61637A',
-  inkFaint: '#9598AC',
-  accent: '#5B5BD6',
-  accentFrom: '#6D6DF0',
-  accentTo: '#8B5CF6',
-  accentSoft: '#EEEEFC',
-  onAccent: '#FFFFFF',
-  good: '#16A34A',
-  goodSoft: '#E8F7EE',
-  warn: '#D97706',
-  warnSoft: '#FEF3E2',
-  bad: '#DC2626',
-  badSoft: '#FDECEC',
-  heroFrom: '#6D6DF0',
-  heroTo: '#8B5CF6',
-  shadowColor: '#1B1D33',
-}
-
-const dark: Palette = {
-  canvas: '#0B0B12',
-  canvasDeep: '#07070C',
-  surface: '#15161F',
-  surfaceAlt: '#1C1D28',
-  glass: 'rgba(21,22,31,0.72)',
-  line: '#252734',
-  lineStrong: '#32354A',
-  ink: '#F2F3F8',
-  inkMuted: '#9EA1B8',
-  inkFaint: '#6A6D84',
-  accent: '#8B8BF5',
-  accentFrom: '#7C7CF0',
-  accentTo: '#A78BFA',
-  accentSoft: '#1E1D3D',
-  onAccent: '#0B0B12',
-  good: '#4ADE80',
-  goodSoft: '#10241A',
-  warn: '#FBBF24',
-  warnSoft: '#2A1F0E',
-  bad: '#F87171',
-  badSoft: '#2B1414',
-  heroFrom: '#5B5BD6',
-  heroTo: '#7C3AED',
-  shadowColor: '#000000',
-}
-
-export const palettes: Record<Scheme, Palette> = { light, dark }
 
 /** 4pt rhythm. Generous by default — crowding is the enemy of confidence. */
 export const space = {

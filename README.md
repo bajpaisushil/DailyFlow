@@ -10,25 +10,54 @@ no network layer in the application at all.
 
 ---
 
-## Run it
+## Run it on your phone
+
+### Quick look — Expo Go (2 minutes, no build)
 
 ```bash
 npm install
 npx expo start
 ```
 
-Notifications and geofencing are native capabilities, so they need a **development build**
-rather than Expo Go:
+Scan the QR code with the **Expo Go** app. You get the whole interface, all your lists, day
+plans, places, storage and export.
+
+Two things genuinely do not work in Expo Go, and the app says so on screen rather than
+pretending: **place reminders** (Expo Go cannot register background tasks) and some
+**scheduled reminder** behaviour. Expo Go is a shared sandbox app, not DailyFlow.
+
+### The real thing — a development build (everything works)
+
+This is the one that fires reminders with the app fully closed and watches your places.
+
+**No Android Studio needed** — EAS builds it in the cloud and gives you an APK to install:
 
 ```bash
-npx expo run:android      # needs Android Studio
-npx expo run:ios          # needs Xcode
+npx eas login                                    # a free Expo account
+npx eas build --profile development --platform android
 ```
 
-Regenerate the app icons from the Orbit mark at any time:
+Install the APK it gives you, then:
 
 ```bash
-node scripts/make-icons.mjs
+npx expo start --dev-client
+```
+
+Scan the QR with the **DailyFlow** app you just installed (not Expo Go).
+
+**If you do have Android Studio / Xcode**, plug the phone in and skip the cloud:
+
+```bash
+npx expo run:android --device
+npx expo run:ios --device
+```
+
+### Other commands
+
+```bash
+npm test                      # 105 tests, no framework — Node's built-in runner
+npx tsc --noEmit              # strict typecheck
+node scripts/make-icons.mjs   # regenerate every icon from the Orbit mark
 ```
 
 ---
@@ -43,6 +72,9 @@ permission state at runtime and says so in plain words.
 | Reminder at a set time | ✅ Yes — scheduled in the OS | ❌ No |
 | "You have arrived at work" | ✅ Yes — OS region monitoring | ❌ No |
 | Lists, day plans, places | ✅ Always, offline | ❌ No |
+
+In **Expo Go** the first two rows do not work — it cannot register background tasks. The app
+detects this and tells you in plain words instead of failing silently.
 
 This is why the project is a native app rather than a PWA. On the web both rows above are
 impossible: the W3C Geolocation spec forbids position updates to a non-visible document,
@@ -117,3 +149,24 @@ Icons never appear without their word.
 - **Open a saved copy** — validates the file before writing anything.
 - **Space used** — measured from the database, not estimated.
 - **Remove everything** — genuinely everything.
+
+
+## Colour
+
+The palette is solved, not chosen by eye. `src/theme/palettes.ts` holds the tokens and
+`palettes.test.ts` recomputes every WCAG 2.2 contrast ratio from the shipped hex values on
+every test run, so a colour tweak that makes text unreadable fails the build.
+
+Body and secondary text clear AAA (7:1); nothing user-facing sits below AA (4.5:1). That
+headroom is deliberate — this app is read slowly, in sunlight, on cheap panels.
+
+Two findings from that work are worth recording, because both were real defects:
+
+- The primary button's white label was failing AA against its own gradient (4.12:1). The
+  test suite originally checked the label against the *solid* accent, which passed, while
+  the button is actually painted with the gradient stops. `palettes.test.ts` now checks the
+  stops.
+- The 3D gloss highlight lightens the surface beneath a white label. A uniform 20% overlay
+  drops the label to ~3.6:1. The highlight is now confined to the top edge and capped inside
+  the band where a label sits; `Gloss.test.ts` enforces that contract so the effect cannot be
+  turned back up.
