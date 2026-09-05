@@ -99,9 +99,24 @@ export function DayPicker({ value, onChange }: Props) {
                 { backgroundColor: active ? c.accentSoft : c.surfaceAlt },
               ]}
             >
-              <Text variant="label" style={{ color: active ? c.accent : c.inkFaint }}>
+              <Text
+                variant="label"
+                style={{
+                  color: active ? c.accent : c.inkFaint,
+                  fontWeight: active ? '700' : '500',
+                }}
+              >
                 {initial(day)}
               </Text>
+              {/* accentSoft alone is ~1.1:1 against the page, far below the 3:1 WCAG 1.4.11
+                  asks of a state indicator, so selection is also carried by this dot and by
+                  the heavier weight above. */}
+              <View
+                style={[
+                  styles.dot,
+                  { backgroundColor: active ? c.accent : 'transparent' },
+                ]}
+              />
             </PressableScale>
           )
         })}
@@ -119,6 +134,7 @@ const styles = StyleSheet.create({
   strip: { flexDirection: 'row', gap: 6 },
   day: {
     flex: 1, minHeight: 56, borderRadius: radius.md,
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center', gap: 4,
   },
+  dot: { width: 5, height: 5, borderRadius: 2.5 },
 })

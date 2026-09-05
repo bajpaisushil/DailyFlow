@@ -72,6 +72,13 @@ export function IconPicker({ value, onChange, set = 'thing' }: Props) {
             <Text variant="label" style={{ color: active ? c.accent : c.inkMuted, fontSize: 12 }}>
               {opt.label}
             </Text>
+            {/* A tint alone is below the contrast a state indicator needs, so the chosen
+                tile also carries a tick. */}
+            {active ? (
+              <View style={[styles.tick, { backgroundColor: c.accent }]}>
+                <Icon name="check" size={12} color={c.onAccent} />
+              </View>
+            ) : null}
           </PressableScale>
         )
       })}
@@ -84,5 +91,10 @@ const styles = StyleSheet.create({
   tile: {
     width: 88, height: 88, borderRadius: radius.lg,
     alignItems: 'center', justifyContent: 'center', gap: space.xs,
+  },
+  tick: {
+    position: 'absolute', top: 6, right: 6,
+    width: 20, height: 20, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
   },
 })

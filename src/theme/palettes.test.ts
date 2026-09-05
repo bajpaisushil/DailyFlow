@@ -96,6 +96,30 @@ for (const scheme of ['light', 'dark'] as const) {
       assert.ok(ordered, `tiers are not monotonic: ${ink} / ${muted} / ${faint}`)
     })
 
+    it('gives control boundaries the 3:1 WCAG 1.4.11 requires', () => {
+      // lineStrong is the visible edge of an interactive control, so it is held to the
+      // non-text contrast rule against every plane it can sit on. A decorative `line`
+      // hairline is exempt because it never carries meaning on its own.
+      for (const [label, bg] of [
+        ['surface', p.surface], ['canvas', p.canvas],
+        ['surfaceAlt', p.surfaceAlt], ['canvasDeep', p.canvasDeep],
+      ] as const) {
+        const ratio = contrast(p.lineStrong, bg)
+        assert.ok(ratio >= 3, `lineStrong on ${label}: ${ratio.toFixed(2)}:1 is below 3:1`)
+      }
+    })
+
+    it('keeps a semantic chip distinguishable from the page behind it', () => {
+      // A "done" chip that matches the canvas is not a chip. This is a low bar by design —
+      // the chip is reinforced by an icon — but it must not be literally invisible.
+      for (const [label, chip] of [
+        ['goodSoft', p.goodSoft], ['warnSoft', p.warnSoft], ['badSoft', p.badSoft],
+      ] as const) {
+        const ratio = contrast(chip, p.canvas)
+        assert.ok(ratio >= 1.06, `${label} on canvas: ${ratio.toFixed(3)}:1 is invisible`)
+      }
+    })
+
     it('never uses pure black or pure white as a large ground', () => {
       // Both are harsh to read against for long periods; this app is opened every day.
       if (scheme === 'dark') {

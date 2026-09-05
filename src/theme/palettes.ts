@@ -20,7 +20,12 @@ export interface Palette {
   surfaceAlt: string
   /** Translucent fill used behind blur. */
   glass: string
+  /** Hairline separator. Decorative only — never the sole boundary of a control. */
   line: string
+  /**
+   * The visible boundary of an interactive control at rest. WCAG 1.4.11 requires 3:1
+   * against every adjacent surface, so this is markedly darker than a decorative hairline.
+   */
   lineStrong: string
   ink: string
   inkMuted: string
@@ -28,6 +33,11 @@ export interface Palette {
   accent: string
   accentFrom: string
   accentTo: string
+  /**
+   * Accent tint for a selected chip or pill. At ~1.1:1 against the canvas it is far below
+   * the 3:1 WCAG 1.4.11 needs, so it must NEVER be the only signal that something is
+   * selected — always pair it with a glyph, a weight change, or a tick.
+   */
   accentSoft: string
   onAccent: string
   good: string
@@ -49,7 +59,7 @@ const light: Palette = {
   surfaceAlt: '#F5F7FC',
   glass: 'rgba(251,252,255,0.72)',
   line: '#DEE2EC',
-  lineStrong: '#C8CEDB',
+  lineStrong: '#818793',
   ink: '#1E2131',
   inkMuted: '#4C5062',
   inkFaint: '#61677A',
@@ -62,9 +72,9 @@ const light: Palette = {
   accentSoft: '#E0E7FF',
   onAccent: '#FFFFFF',
   good: '#007555',
-  goodSoft: '#C7F8E2',
+  goodSoft: '#BBF3DA',
   warn: '#985700',
-  warnSoft: '#FFEAD0',
+  warnSoft: '#FBE3C5',
   bad: '#A9131F',
   badSoft: '#FFDFDC',
   heroFrom: '#4158CC',
@@ -84,7 +94,7 @@ const dark: Palette = {
   surfaceAlt: '#242932',
   glass: 'rgba(26,30,37,0.76)',
   line: '#2E333D',
-  lineStrong: '#434955',
+  lineStrong: '#6B727F',
   ink: '#E8EAF1',
   inkMuted: '#BEC1CF',
   inkFaint: '#A0A6B6',
