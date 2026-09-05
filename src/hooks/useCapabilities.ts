@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AppState, Linking } from 'react-native'
 import { readCapability, requestBackground, requestForeground, type LocationCapability } from '@/lib/location/service'
-import { readPermission, requestPermission, type PermissionState } from '@/lib/notify/scheduler'
+import {
+  notificationsAvailable, readPermission, requestPermission, type PermissionState,
+} from '@/lib/notify/scheduler'
 import { syncGeofences } from '@/lib/location/geofence'
 import { resyncAll } from '@/lib/engine/apply'
 
@@ -13,6 +15,8 @@ import { resyncAll } from '@/lib/engine/apply'
  * we must never keep claiming a capability we have lost (REQUIREMENTS.md #34/#36).
  */
 export interface Capabilities {
+  /** False when this build cannot schedule reminders at all (Expo Go). */
+  canScheduleAtAll: boolean
   notifications: PermissionState
   location: LocationCapability
   /** True when reminders can reach the user with DailyFlow fully closed. */
@@ -22,6 +26,7 @@ export interface Capabilities {
 }
 
 const UNKNOWN: Capabilities = {
+  canScheduleAtAll: true,
   notifications: 'undetermined',
   location: { foreground: 'undetermined', background: 'undetermined', servicesEnabled: false },
   remindersWorkWhenClosed: false,
@@ -33,11 +38,14 @@ export function useCapabilities() {
 
   const refresh = useCallback(async () => {
     const [notifications, location] = await Promise.all([readPermission(), readCapability()])
+    const canSchedule = notificationsAvailable()
     setCaps({
+      canScheduleAtAll: canSchedule,
       notifications,
       location,
-      remindersWorkWhenClosed: notifications === 'granted',
+      remindersWorkWhenClosed: canSchedule && notifications === 'granted',
       placesWorkWhenClosed:
+        canSchedule &&
         notifications === 'granted' &&
         location.foreground === 'granted' &&
         location.background === 'granted' &&

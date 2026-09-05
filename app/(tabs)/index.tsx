@@ -17,6 +17,7 @@ import { useSettings } from '@/stores/settings'
 import { useClock } from '@/hooks/useClock'
 import { buildToday } from '@/lib/today'
 import { markOnboarded } from '@/lib/data/seed'
+import { EXPO_GO_LIMITATION } from '@/lib/runtime'
 import { formatTime, toHHMM } from '@/lib/time'
 import { space, radius } from '@/theme/tokens'
 import { useColors } from '@/theme/ThemeProvider'
@@ -62,8 +63,12 @@ export default function TodayScreen() {
 
   // Ask about reminders only once there is a plan that would actually send one. Before
   // that the permission has no purpose, and asking would be the nagging we promised to avoid.
+  const hasPlans = routines.some((r) => r.enabled)
+  // Only ask when asking can actually achieve something. In Expo Go the permission exists
+  // but the scheduler does not, so prompting would be a dead end.
   const needsReminderPermission =
-    !isFirstRun && routines.some((r) => r.enabled) && !caps.remindersWorkWhenClosed
+    !isFirstRun && hasPlans && caps.canScheduleAtAll && !caps.remindersWorkWhenClosed
+  const cannotSchedule = !isFirstRun && hasPlans && !caps.canScheduleAtAll
 
   return (
     <Screen>
@@ -80,6 +85,17 @@ export default function TodayScreen() {
             reloadSettings()
           }}
         />
+      ) : null}
+
+      {cannotSchedule ? (
+        <Card tone="flat" style={{ marginBottom: space.lg }}>
+          <View style={styles.notice}>
+            <Icon name="phoneOff" size={19} color={c.warn} />
+            <Text variant="caption" tone="muted" style={{ flex: 1 }}>
+              {EXPO_GO_LIMITATION}
+            </Text>
+          </View>
+        </Card>
       ) : null}
 
       {needsReminderPermission ? (
@@ -217,4 +233,5 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
   },
   empty: { alignItems: 'center', paddingVertical: space['3xl'] },
+  notice: { flexDirection: 'row', alignItems: 'center', gap: space.md },
 })

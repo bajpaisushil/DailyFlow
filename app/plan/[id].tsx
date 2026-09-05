@@ -16,7 +16,7 @@ import { CapabilityBadge, type Reach } from '@/components/ui/CapabilityBadge'
 import { useData } from '@/stores/data'
 import { newId } from '@/lib/db/repo'
 import { applyRoutine, removeRoutine as removeRoutineAndRules } from '@/lib/engine/apply'
-import { readPermission, requestPermission } from '@/lib/notify/scheduler'
+import { notificationsAvailable, readPermission, requestPermission } from '@/lib/notify/scheduler'
 import type { Routine, Weekday } from '@/lib/types'
 import { WEEKDAYS_MON_FRI } from '@/lib/time'
 import { space, radius, font } from '@/theme/tokens'
@@ -67,6 +67,10 @@ export default function PlanEditor() {
 
   // Show the honest capability state as soon as the screen opens.
   React.useEffect(() => {
+    if (!notificationsAvailable()) {
+      setReach('off')
+      return
+    }
     void readPermission().then((p) =>
       setReach(p === 'granted' ? 'closed' : p === 'denied' ? 'off' : 'needsAllow'),
     )

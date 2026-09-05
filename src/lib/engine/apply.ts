@@ -1,7 +1,7 @@
 import type { Automation, Routine } from '@/lib/types'
 import * as repo from '@/lib/db/repo'
 import { compileRoutine, staleAutomationIds } from './compile'
-import { syncSchedules, readPermission } from '@/lib/notify/scheduler'
+import { syncSchedules, readPermission, notificationsAvailable } from '@/lib/notify/scheduler'
 
 /**
  * The single place where saving a routine turns into real, scheduled reminders.
@@ -53,6 +53,12 @@ export async function removeRoutine(routineId: string): Promise<void> {
  * what should fire, and on app start so a reinstall or an OS-level clear is repaired.
  */
 export async function resyncAll(): Promise<Omit<ApplyResult, 'automations'>> {
+  // A build that cannot schedule at all (Expo Go) is a different state from one where the
+  // user has simply not granted permission. The UI needs to tell them apart.
+  if (!notificationsAvailable()) {
+    return { scheduled: 0, skipped: 0, notificationsAllowed: false }
+  }
+
   const permission = await readPermission()
   if (permission !== 'granted') {
     return { scheduled: 0, skipped: 0, notificationsAllowed: false }
@@ -60,7 +66,9 @@ export async function resyncAll(): Promise<Omit<ApplyResult, 'automations'>> {
 
   const settings = repo.settings.read()
   const enabled = repo.automations.all().filter((a) => a.enabled)
-  const result = await syncSchedules(enabled, { vibrate: settings.notifications.vibrate })
+  const { scheduled, skipped } = await syncSchedules(enabled, {
+    vibrate: settings.notifications.vibrate,
+  })
 
-  return { ...result, notificationsAllowed: true }
+  return { scheduled, skipped, notificationsAllowed: true }
 }
