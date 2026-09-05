@@ -10,11 +10,13 @@ import { PressableScale } from '@/components/ui/PressableScale'
 import { Button } from '@/components/ui/Button'
 import { ChecklistCard } from '@/components/today/ChecklistCard'
 import { PermissionCard } from '@/components/ui/PermissionCard'
+import { WelcomeCard } from '@/components/today/WelcomeCard'
 import { useCapabilities } from '@/hooks/useCapabilities'
 import { useData } from '@/stores/data'
 import { useSettings } from '@/stores/settings'
 import { useClock } from '@/hooks/useClock'
 import { buildToday } from '@/lib/today'
+import { markOnboarded } from '@/lib/data/seed'
 import { formatTime, toHHMM } from '@/lib/time'
 import { space, radius } from '@/theme/tokens'
 import { useColors } from '@/theme/ThemeProvider'
@@ -41,6 +43,10 @@ export default function TodayScreen() {
   const locale = useSettings((s) => s.settings.locale)
   const { caps, askForReminders, openPhoneSettings } = useCapabilities()
 
+  const onboardedAt = useSettings((s) => s.settings.onboardingCompletedAt)
+  const reloadSettings = useSettings((s) => s.reload)
+  const isFirstRun = onboardedAt == null
+
   const model = useMemo(
     () => buildToday({ now, routines, places, checklists, runs }),
     [now, routines, places, checklists, runs],
@@ -57,7 +63,7 @@ export default function TodayScreen() {
   // Ask about reminders only once there is a plan that would actually send one. Before
   // that the permission has no purpose, and asking would be the nagging we promised to avoid.
   const needsReminderPermission =
-    routines.some((r) => r.enabled) && !caps.remindersWorkWhenClosed
+    !isFirstRun && routines.some((r) => r.enabled) && !caps.remindersWorkWhenClosed
 
   return (
     <Screen>
@@ -66,6 +72,15 @@ export default function TodayScreen() {
         <Text variant="display">{S.today[model.greeting]}</Text>
         <Text variant="body" tone="muted">{dateLabel}</Text>
       </Animated.View>
+
+      {isFirstRun ? (
+        <WelcomeCard
+          onDismiss={() => {
+            markOnboarded()
+            reloadSettings()
+          }}
+        />
+      ) : null}
 
       {needsReminderPermission ? (
         <PermissionCard
