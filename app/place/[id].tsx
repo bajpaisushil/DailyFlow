@@ -13,6 +13,10 @@ import { IconPicker } from '@/components/ui/IconPicker'
 import { useData } from '@/stores/data'
 import { newId } from '@/lib/db/repo'
 import { getCurrentFix, requestForeground, type Fix } from '@/lib/location/service'
+import { describe as describeCoords } from '@/lib/location/search'
+import { mapsAvailable } from '@/lib/location/maps'
+import { MapPicker } from '@/components/places/MapPicker'
+import { PlaceSearch } from '@/components/places/PlaceSearch'
 import { RADIUS_PRESETS, type Place, type RadiusPresetKey } from '@/lib/types'
 import { metresForPreset, nearestPreset } from '@/lib/places'
 import { space, radius as r, font } from '@/theme/tokens'
@@ -58,6 +62,22 @@ export default function PlaceEditor() {
   )
   const [locating, setLocating] = useState(false)
   const [locationError, setLocationError] = useState(false)
+  const [showMap, setShowMap] = useState(false)
+  /** Address the OS reports for the chosen spot, shown so the user can confirm it is right. */
+  const [addressLabel, setAddressLabel] = useState<string | null>(null)
+
+  const canUseMap = mapsAvailable()
+
+  /**
+   * Whenever the pin moves, ask the OS what is there and offer it as the name. Most users
+   * can then finish without typing anything at all.
+   */
+  const adoptCoords = useCallback(async (nextLat: number, nextLon: number, suggestName: boolean) => {
+    setFix({ lat: nextLat, lon: nextLon, accuracyM: 0, at: Date.now() })
+    const described = await describeCoords(nextLat, nextLon)
+    setAddressLabel(described ? [described.label, described.detail].filter(Boolean).join(', ') : null)
+    if (suggestName && described && !name.trim()) setName(described.label)
+  }, [name])
 
   const capture = useCallback(async () => {
     setLocating(true)
@@ -69,10 +89,10 @@ export default function PlaceEditor() {
       return
     }
     const next = await getCurrentFix(true)
-    setFix(next)
+    if (next) await adoptCoords(next.lat, next.lon, true)
     setLocationError(next == null)
     setLocating(false)
-  }, [])
+  }, [adoptCoords])
 
   const onDone = useCallback(() => {
     const trimmed = name.trim()
@@ -101,23 +121,30 @@ export default function PlaceEditor() {
         disabled={!name.trim() || !fix}
       />
 
-      {/* Where — no map, just "I am here now" */}
+      {/* Where. Three ways in, because one size does not fit every situation:
+          standing there (GPS, works offline), knowing the name (search), or
+          recognising it on a map (needs a development build). */}
       <Text variant="label" tone="muted" style={styles.section}>{S.place.whereAreYou}</Text>
       <Card style={{ marginBottom: space.xl }}>
         {fix ? (
           <Animated.View entering={FadeIn} style={styles.gotFix}>
             <Icon name="checkCircle" size={22} color={c.good} />
-            <Text variant="body" tone="good" style={{ flex: 1 }}>{S.place.gotLocation}</Text>
+            <View style={{ flex: 1 }}>
+              <Text variant="body" tone="good">{S.place.gotLocation}</Text>
+              {addressLabel ? (
+                <Text variant="caption" tone="muted" numberOfLines={2}>{addressLabel}</Text>
+              ) : null}
+            </View>
           </Animated.View>
         ) : (
           <Text variant="caption" tone="muted" style={{ marginBottom: space.md }}>
-            {S.place.howCloseHelp}
+            Choose where this place is.
           </Text>
         )}
 
         <Button
           label={locating ? '…' : S.place.hereNow}
-          icon="place"
+          icon="target"
           variant={fix ? 'secondary' : 'primary'}
           size="lg"
           full
@@ -134,7 +161,38 @@ export default function PlaceEditor() {
             {S.place.noLocation}
           </Text>
         ) : null}
+
+        <Text variant="caption" tone="faint" center style={{ marginVertical: space.md }}>
+          or
+        </Text>
+
+        <PlaceSearch
+          onChoose={(found) => {
+            void adoptCoords(found.lat, found.lon, true)
+            setShowMap(true)
+          }}
+        />
+
+        {canUseMap && fix ? (
+          <Button
+            label={showMap ? 'Hide map' : 'Show on map'}
+            icon="map"
+            variant="quiet"
+            full
+            style={{ marginTop: space.sm }}
+            onPress={() => setShowMap((v) => !v)}
+          />
+        ) : null}
       </Card>
+
+      {/* The map fine-tunes a spot that GPS or search already found. */}
+      {canUseMap && showMap && fix ? (
+        <MapPicker
+          lat={fix.lat}
+          lon={fix.lon}
+          onPick={(nextLat, nextLon) => void adoptCoords(nextLat, nextLon, false)}
+        />
+      ) : null}
 
       {/* How close — named options with help text, never metres */}
       <Text variant="label" tone="muted" style={styles.section}>{S.place.howClose}</Text>

@@ -91,6 +91,9 @@ const MAP = {
   speak: { set: 'ion', name: 'volume-high-outline' },
   mic: { set: 'ion', name: 'mic-outline' },
   sparkle: { set: 'mc', name: 'star-four-points-outline' },
+  find: { set: 'ion', name: 'search-outline' },
+  map: { set: 'mc', name: 'map-outline' },
+  target: { set: 'mc', name: 'crosshairs-gps' },
 } as const
 
 interface IconProps {
