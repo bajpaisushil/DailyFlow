@@ -195,8 +195,10 @@ export function clearAll(): void {
 /** Bytes on disk, for the storage panel the user asked for (REQUIREMENTS.md #41). */
 export function collectionBytes(collection: Collection): number {
   const db = getDb()
+  // LENGTH() on TEXT counts characters; casting to BLOB counts real bytes, which is what
+  // the user is being shown.
   const row = db.getFirstSync<{ n: number | null }>(
-    `SELECT SUM(LENGTH(doc)) AS n FROM ${collection}`,
+    `SELECT SUM(LENGTH(CAST(doc AS BLOB))) AS n FROM ${collection}`,
   )
   return row?.n ?? 0
 }

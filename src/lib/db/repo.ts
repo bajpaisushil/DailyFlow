@@ -80,7 +80,8 @@ export const commuteSessions = {
 export const activity = {
   recent: (limit = 50): ActivityEvent[] => store.all<ActivityEvent>('activity', { desc: true, limit }),
   add: (event: Omit<ActivityEvent, 'id' | 'at'> & { at?: number }): ActivityEvent => {
-    const full: ActivityEvent = { id: newId(), at: event.at ?? Date.now(), ...event }
+    // Spread first: a caller passing an explicit `at: undefined` must not clobber the default.
+    const full: ActivityEvent = { ...event, id: newId(), at: event.at ?? Date.now() }
     store.put('activity', full)
     return full
   },
@@ -98,6 +99,9 @@ export const firings = {
   record: (rec: FiringRecord): void => store.put('firings', { ...rec, id: rec.key } as never),
   forAutomation: (automationId: string): FiringRecord[] =>
     store.all<FiringRecord>('firings', { desc: true }).filter((f) => f.automationId === automationId),
+  /** Every firing, newest first — used by the global hourly/daily ceilings. */
+  recent: (limit = 200): FiringRecord[] =>
+    store.all<FiringRecord>('firings', { desc: true, limit }),
   /** The ledger only needs enough history to stop duplicates; a fortnight is ample. */
   prune: (keepDays = 14): void => {
     store.pruneOlderThan('firings', Date.now() - keepDays * 86_400_000)

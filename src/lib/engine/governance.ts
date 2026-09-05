@@ -122,7 +122,7 @@ function allFiredWithin(since: number): { hour: number; day: number } {
 
   let hour = 0
   let day = 0
-  for (const f of firings.forAutomation('')) {
+  for (const f of firings.recent()) {
     if (f.outcome !== 'fired') continue
     if (f.firedAt >= since) hour += 1
     if (f.firedAt >= dayStart.getTime()) day += 1
