@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { View, StyleSheet } from 'react-native'
+import { View, StyleSheet, Platform } from 'react-native'
 import { Card } from '@/components/ui/Card'
 import { Text } from '@/components/ui/Text'
 import { Icon } from '@/components/ui/Icon'
@@ -18,6 +18,17 @@ import { alarmModuleAvailable } from '../../../modules/dailyflow-alarm'
  */
 function ownSoundPlaysWhenClosed(): boolean {
   return alarmModuleAvailable()
+}
+
+/**
+ * Whether making it an alarm would actually help.
+ *
+ * Only on Android, where the alarm is played by our own module. An iPhone alarm is a
+ * time-sensitive NOTIFICATION, so it takes its sound from the bundle exactly like an ordinary
+ * one — offering "ring it as an alarm" there would be a promise the app cannot keep.
+ */
+function alarmWouldPlayOwnSound(): boolean {
+  return Platform.OS === 'android'
 }
 import { nowPlaying, onPlaybackChange, playSound, previewTone, stopSound } from '@/lib/notify/player'
 import { radius, space } from '@/theme/tokens'
@@ -256,11 +267,11 @@ export function SoundPicker({
                 This phone will use its own notification sound, not yours.
               </Text>
               <Text variant="caption" tone="muted" style={{ marginTop: space.xs }}>
-                A notification’s sound belongs to the phone, and it only offers the sounds that
-                came with DailyFlow. Make this an alarm and your own sound plays in full, for as
-                long as you set.
+                {alarmWouldPlayOwnSound()
+                  ? 'A notification’s sound belongs to the phone, and it only offers the sounds that came with DailyFlow. Make this an alarm and your own sound plays in full, for as long as you set.'
+                  : 'A notification’s sound belongs to the phone, and this one only offers the sounds that came with DailyFlow. Choose one of those above and it will sound even when DailyFlow is closed. Your own sound still plays when you open the reminder.'}
               </Text>
-              {onRingAsAlarm ? (
+              {onRingAsAlarm && alarmWouldPlayOwnSound() ? (
                 <Button
                   label="Ring it as an alarm"
                   icon="bell"
