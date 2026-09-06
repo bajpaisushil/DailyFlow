@@ -36,6 +36,7 @@ export default function TodayScreen() {
   const c = useColors()
 
   const routines = useData((s) => s.routines)
+  const reminders = useData((s) => s.reminders)
   const places = useData((s) => s.places)
   const checklists = useData((s) => s.checklists)
   const runs = useData((s) => s.runs)
@@ -50,8 +51,8 @@ export default function TodayScreen() {
   const isFirstRun = onboardedAt == null
 
   const model = useMemo(
-    () => buildToday({ now, routines, places, checklists, runs }),
-    [now, routines, places, checklists, runs],
+    () => buildToday({ now, routines, reminders, places, checklists, runs }),
+    [now, routines, reminders, places, checklists, runs],
   )
 
   const dateLabel = useMemo(
@@ -120,7 +121,7 @@ export default function TodayScreen() {
             <View style={styles.heroRow}>
               <View style={{ flex: 1, gap: 2 }}>
                 <Text variant="title" style={{ color: c.onAccent }} numberOfLines={2}>
-                  {focus.routine.name}
+                  {focus.title}
                 </Text>
                 {/* How long away, in words. The literal time stays below it, but nobody
                     should have to subtract to find out when they need to move. */}
@@ -175,14 +176,20 @@ export default function TodayScreen() {
               const done = e.status === 'past'
               return (
                 <PressableScale
-                  key={e.routine.id}
+                  key={e.id}
                   depth="sm"
-                  onPress={() => router.push(`/plan/${e.routine.id}`)}
+                  onPress={() =>
+                    router.push(
+                      e.source === 'routine'
+                        ? `/plan/${e.routine?.id ?? ''}`
+                        : `/reminder/${e.id.split(':')[0]}`,
+                    )
+                  }
                   style={styles.timelineRow}
-                  accessibilityLabel={e.routine.name}
+                  accessibilityLabel={e.title}
                 >
                   <IconBadge
-                    name={(e.routine.icon as IconName) ?? 'clock'}
+                    name={(e.icon as IconName) ?? 'clock'}
                     plate={38}
                     size={19}
                     background={done ? c.canvasDeep : e.status === 'now' ? c.goodSoft : c.accentSoft}
@@ -190,7 +197,7 @@ export default function TodayScreen() {
                   />
                   <View style={{ flex: 1 }}>
                     <Text variant="body" style={done ? { color: c.inkFaint } : undefined}>
-                      {e.routine.name}
+                      {e.title}
                     </Text>
                     <Text variant="caption" tone="faint">
                       {formatTime(toHHMM(e.startsAtMinutes), use24h, locale)}

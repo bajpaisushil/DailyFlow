@@ -1,5 +1,7 @@
 import { create } from 'zustand'
-import type { Automation, Checklist, ChecklistRun, CommuteSession, Place, Routine } from '@/lib/types'
+import type {
+  Automation, Checklist, ChecklistRun, CommuteSession, Place, Reminder, Routine,
+} from '@/lib/types'
 import * as repo from '@/lib/db/repo'
 import { localDateKey } from '@/lib/time'
 import { syncGeofences } from '@/lib/location/geofence'
@@ -17,6 +19,7 @@ interface DataState {
   places: Place[]
   checklists: Checklist[]
   routines: Routine[]
+  reminders: Reminder[]
   automations: Automation[]
   runs: ChecklistRun[]
   activeCommute: CommuteSession | null
@@ -29,6 +32,8 @@ interface DataState {
   removeChecklist: (id: string) => void
   saveRoutine: (r: Routine) => void
   removeRoutine: (id: string) => void
+  saveReminder: (r: Reminder) => void
+  removeReminder: (id: string) => void
   saveAutomation: (a: Automation) => void
   removeAutomation: (id: string) => void
 
@@ -43,6 +48,7 @@ function readAll() {
     places: repo.places.all(),
     checklists: repo.checklists.all(),
     routines: repo.routines.all(),
+    reminders: repo.reminders.all(),
     automations: repo.automations.all(),
     runs: repo.checklistRuns.all(),
     activeCommute: repo.commuteSessions.active(),
@@ -82,6 +88,15 @@ export const useData = create<DataState>((set, get) => ({
   removeRoutine: (id) => {
     repo.routines.remove(id)
     set({ routines: repo.routines.all() })
+  },
+
+  saveReminder: (r) => {
+    repo.reminders.save(r)
+    set({ reminders: repo.reminders.all() })
+  },
+  removeReminder: (id) => {
+    repo.reminders.remove(id)
+    set({ reminders: repo.reminders.all() })
   },
 
   saveAutomation: (a) => {

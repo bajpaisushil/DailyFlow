@@ -25,6 +25,7 @@ export const S = {
   // ── Navigation ──────────────────────────────────────────────────────────
   nav: {
     today: 'Today',
+    reminders: 'Reminders',
     places: 'Places',
     dayPlans: 'Day plans',
     lists: 'Lists',

@@ -1,6 +1,6 @@
 import type {
   ActivityEvent, AppSettings, Automation, Checklist, ChecklistRun, CommuteProfile,
-  CommuteSession, FiringRecord, Place, Routine,
+  CommuteSession, FiringRecord, Place, Reminder, Routine,
 } from '@/lib/types'
 import * as store from './sqlite'
 import { newId } from '@/lib/id'
@@ -41,6 +41,7 @@ function makeRepo<T extends { id: string; createdAt: number; updatedAt: number; 
 export const places = makeRepo<Place>('places')
 export const checklists = makeRepo<Checklist>('checklists')
 export const routines = makeRepo<Routine>('routines')
+export const reminders = makeRepo<Reminder>('reminders')
 export const automations = makeRepo<Automation>('automations')
 export const commuteProfiles = makeRepo<CommuteProfile>('commuteProfiles')
 

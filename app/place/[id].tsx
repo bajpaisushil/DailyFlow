@@ -41,7 +41,7 @@ const RADIUS_CHOICES: Array<{ key: RadiusPresetKey; label: string; help: string 
 ]
 
 export default function PlaceEditor() {
-  const { id } = useLocalSearchParams<{ id: string }>()
+  const { id, name: presetName } = useLocalSearchParams<{ id: string; name?: string }>()
   const router = useRouter()
   const c = useColors()
 
@@ -52,8 +52,11 @@ export default function PlaceEditor() {
   const isNew = id === 'new'
   const existing = useMemo(() => places.find((p) => p.id === id), [places, id])
 
-  const [name, setName] = useState(existing?.name ?? '')
-  const [icon, setIcon] = useState<string>(existing?.icon ?? 'place')
+  // The Home/Work slots pass a name in, so those two land pre-filled.
+  const [name, setName] = useState(existing?.name ?? presetName ?? '')
+  const [icon, setIcon] = useState<string>(
+    existing?.icon ?? (presetName === 'Home' ? 'home' : presetName === 'Work' ? 'work' : 'place'),
+  )
   const [fix, setFix] = useState<Fix | null>(
     existing ? { lat: existing.lat, lon: existing.lon, accuracyM: 0, at: existing.updatedAt } : null,
   )
@@ -98,6 +101,9 @@ export default function PlaceEditor() {
     if (suggestName && described && !name.trim()) setName(described.label)
   }, [name])
 
+  const [addressLabelForSave, setAddressLabelForSave] = useState(existing?.address)
+  React.useEffect(() => { setAddressLabelForSave(addressLabel ?? existing?.address) }, [addressLabel, existing?.address])
+
   const capture = useCallback(async () => {
     setLocating(true)
     setLocationError(false)
@@ -123,6 +129,7 @@ export default function PlaceEditor() {
       icon,
       lat: fix.lat,
       lon: fix.lon,
+      address: addressLabelForSave,
       radiusM: metresForPreset(preset),
       checklistIds: existing?.checklistIds ?? [],
       createdAt: existing?.createdAt ?? now,
@@ -130,7 +137,7 @@ export default function PlaceEditor() {
     }
     savePlace(doc)
     router.back()
-  }, [name, icon, fix, preset, existing, savePlace, router])
+  }, [name, icon, fix, preset, addressLabelForSave, existing, savePlace, router])
 
   return (
     <Screen>
@@ -161,8 +168,29 @@ export default function PlaceEditor() {
           </Text>
         )}
 
+        {/* Typing the address comes first: most places you save are ones you are NOT
+            standing in — the temple across town, the office before you start the job. */}
+        <PlaceSearch
+          selected={chosen}
+          onResults={(found) => {
+            setCandidates(found)
+            // Show the map as soon as there is something to compare, so a list of
+            // similar-sounding names can be told apart by where they actually are.
+            if (found.length > 0) setShowMap(true)
+          }}
+          onChoose={(found) => {
+            setChosen(found)
+            void adoptCoords(found.lat, found.lon, true)
+            setShowMap(true)
+          }}
+        />
+
+        <Text variant="caption" tone="faint" center style={{ marginVertical: space.md }}>
+          or
+        </Text>
+
         <Button
-          label={locating ? '…' : S.place.hereNow}
+          label={locating ? 'Finding you…' : S.place.hereNow}
           icon="target"
           variant={fix ? 'secondary' : 'primary'}
           size="lg"
@@ -180,25 +208,6 @@ export default function PlaceEditor() {
             {S.place.noLocation}
           </Text>
         ) : null}
-
-        <Text variant="caption" tone="faint" center style={{ marginVertical: space.md }}>
-          or
-        </Text>
-
-        <PlaceSearch
-          selected={chosen}
-          onResults={(found) => {
-            setCandidates(found)
-            // Show the map as soon as there is something to compare, so a list of
-            // similar-sounding names can be told apart by where they actually are.
-            if (found.length > 0) setShowMap(true)
-          }}
-          onChoose={(found) => {
-            setChosen(found)
-            void adoptCoords(found.lat, found.lon, true)
-            setShowMap(true)
-          }}
-        />
 
         {canUseMap && fix ? (
           <Button

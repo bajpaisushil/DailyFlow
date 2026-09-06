@@ -20,6 +20,7 @@ export type Collection =
   | 'checklists'
   | 'checklistRuns'
   | 'routines'
+  | 'reminders'
   | 'automations'
   | 'commuteProfiles'
   | 'commuteSessions'
@@ -27,7 +28,7 @@ export type Collection =
   | 'firings'
 
 const COLLECTIONS: Collection[] = [
-  'settings', 'places', 'checklists', 'checklistRuns', 'routines',
+  'settings', 'places', 'checklists', 'checklistRuns', 'routines', 'reminders',
   'automations', 'commuteProfiles', 'commuteSessions', 'activity', 'firings',
 ]
 

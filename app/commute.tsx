@@ -32,6 +32,7 @@ export default function CommuteScreen() {
 
   const active = useData((s) => s.activeCommute)
   const routines = useData((s) => s.routines)
+  const reminders = useData((s) => s.reminders)
   const places = useData((s) => s.places)
   const checklists = useData((s) => s.checklists)
   const runs = useData((s) => s.runs)
@@ -40,8 +41,8 @@ export default function CommuteScreen() {
   const locale = useSettings((s) => s.settings.locale)
 
   const model = useMemo(
-    () => buildToday({ now, routines, places, checklists, runs }),
-    [now, routines, places, checklists, runs],
+    () => buildToday({ now, routines, reminders, places, checklists, runs }),
+    [now, routines, reminders, places, checklists, runs],
   )
 
   // The trip we are most likely on: whatever is happening or next.
@@ -51,8 +52,8 @@ export default function CommuteScreen() {
     commuteSessions.save({
       id: newId(),
       startedAt: Date.now(),
-      originPlaceId: focus?.routine.originPlaceId,
-      destinationPlaceId: focus?.routine.destinationPlaceId,
+      originPlaceId: focus?.routine?.originPlaceId,
+      destinationPlaceId: focus?.routine?.destinationPlaceId,
     })
     activity.add({ kind: 'commute.started', summary: S.way.started })
     refresh()
@@ -69,7 +70,7 @@ export default function CommuteScreen() {
     ? places.find((p) => p.id === active.destinationPlaceId)
     : focus?.destination
 
-  const expected = focus?.routine.typicalDurationMinutes
+  const expected = focus?.routine?.typicalDurationMinutes
 
   return (
     <Screen>
@@ -100,13 +101,13 @@ export default function CommuteScreen() {
           <Card style={{ marginBottom: space.xl }}>
             <View style={styles.row}>
               <IconBadge
-                name={(focus?.routine.icon as IconName) ?? 'metro'}
+                name={(focus?.icon as IconName) ?? 'metro'}
                 plate={52}
                 size={24}
               />
               <View style={{ flex: 1 }}>
                 <Text variant="heading">
-                  {focus ? focus.routine.name : S.way.title}
+                  {focus ? focus.title : S.way.title}
                 </Text>
                 <Text variant="caption" tone="muted">
                   {destination ? `To ${destination.name}` : 'Start when you set off.'}

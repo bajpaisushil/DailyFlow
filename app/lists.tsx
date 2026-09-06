@@ -3,7 +3,8 @@ import { View, StyleSheet } from 'react-native'
 import { useRouter } from 'expo-router'
 import Animated, { FadeInDown } from 'react-native-reanimated'
 import { Screen } from '@/components/ui/Screen'
-import { ScreenHeader } from '@/components/ui/ScreenHeader'
+import { DetailHeader } from '@/components/ui/DetailHeader'
+import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Text } from '@/components/ui/Text'
 import { Icon, IconBadge, type IconName } from '@/components/ui/Icon'
@@ -22,11 +23,17 @@ export default function ListsScreen() {
 
   return (
     <Screen>
-      <ScreenHeader
-        title={S.nav.lists}
-        help={S.list.help}
-        onAdd={() => router.push('/list/new')}
-        addLabel={S.list.addOne}
+      <DetailHeader title={S.nav.lists} />
+      <Text variant="caption" tone="muted" style={{ marginTop: -space.md, marginBottom: space.lg }}>
+        {S.list.help}
+      </Text>
+      <Button
+        label={S.list.addOne}
+        icon="plus"
+        variant="secondary"
+        full
+        style={{ marginBottom: space.lg }}
+        onPress={() => router.push('/list/new')}
       />
 
       {checklists.length === 0 ? (

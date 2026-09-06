@@ -1,4 +1,4 @@
-import type { Checklist, ChecklistRun, Place, Routine } from '@/lib/types'
+import type { Checklist, ChecklistRun, Place, Reminder, Routine } from '@/lib/types'
 import { localDateKey, minutesOfDay, parseHHMM, weekdayOf } from '@/lib/time'
 
 /**
@@ -15,8 +15,20 @@ import { localDateKey, minutesOfDay, parseHHMM, weekdayOf } from '@/lib/time'
 
 export type DayPhase = 'night' | 'earlyMorning' | 'morning' | 'afternoon' | 'evening'
 
+/**
+ * One thing happening today.
+ *
+ * A reminder and a day plan both land here, because Today answers "what is happening" and the
+ * user does not care which internal shape produced it. `source` exists only so tapping a row
+ * opens the right editor.
+ */
 export interface TodayEntry {
-  routine: Routine
+  id: string
+  title: string
+  icon: string
+  source: 'reminder' | 'routine'
+  /** Present only when this came from a day plan. */
+  routine?: Routine
   /** Absolute local time this routine starts today. */
   startsAtMinutes: number
   status: 'past' | 'now' | 'next' | 'later'
@@ -73,36 +85,66 @@ const DEFAULT_WINDOW_MINUTES = 90
 export function buildToday(input: {
   now: Date
   routines: Routine[]
+  reminders?: Reminder[]
   places: Place[]
   checklists: Checklist[]
   runs: ChecklistRun[]
 }): TodayModel {
-  const { now, routines, places, checklists, runs } = input
+  const { now, routines, reminders = [], places, checklists, runs } = input
   const today = weekdayOf(now)
   const nowMinutes = minutesOfDay(now)
   const periodKey = localDateKey(now)
   const placeById = new Map(places.map((p) => [p.id, p]))
 
-  const entries: TodayEntry[] = routines
+  const statusFor = (startsAtMinutes: number, finish: number): TodayEntry['status'] =>
+    nowMinutes >= startsAtMinutes && nowMinutes < finish
+      ? 'now'
+      : nowMinutes >= finish
+        ? 'past'
+        : 'later'
+
+  const fromRoutines: TodayEntry[] = routines
     .filter((r) => r.enabled && r.days.includes(today))
     .map((r) => {
       const startsAtMinutes = parseHHMM(r.startTime) ?? 0
       const endMinutes = r.endTime ? parseHHMM(r.endTime) : null
-      const finish = endMinutes ?? startsAtMinutes + DEFAULT_WINDOW_MINUTES
-      const status: TodayEntry['status'] =
-        nowMinutes >= startsAtMinutes && nowMinutes < finish
-          ? 'now'
-          : nowMinutes >= finish
-            ? 'past'
-            : 'later'
       return {
+        id: r.id,
+        title: r.name,
+        icon: r.icon,
+        source: 'routine' as const,
         routine: r,
         startsAtMinutes,
-        status,
+        status: statusFor(startsAtMinutes, endMinutes ?? startsAtMinutes + DEFAULT_WINDOW_MINUTES),
         origin: r.originPlaceId ? placeById.get(r.originPlaceId) : undefined,
         destination: r.destinationPlaceId ? placeById.get(r.destinationPlaceId) : undefined,
       }
     })
+
+  /**
+   * Each of a reminder's times becomes its own row: "take my medicine" at 09:00 and at 21:00
+   * are two separate things happening today, and showing them as one would be a lie about the
+   * day's shape. A reminder with no times is purely location-driven and cannot be placed on a
+   * timeline at all, so it is left off.
+   */
+  const fromReminders: TodayEntry[] = reminders
+    .filter((r) => r.enabled && (r.days.length === 0 || r.days.includes(today)))
+    .flatMap((r) =>
+      r.times.flatMap((time) => {
+        const startsAtMinutes = parseHHMM(time)
+        if (startsAtMinutes == null) return []
+        return [{
+          id: `${r.id}:${time}`,
+          title: r.title,
+          icon: r.icon,
+          source: 'reminder' as const,
+          startsAtMinutes,
+          status: statusFor(startsAtMinutes, startsAtMinutes + 30),
+        }]
+      }),
+    )
+
+  const entries: TodayEntry[] = [...fromRoutines, ...fromReminders]
     .sort((a, b) => a.startsAtMinutes - b.startsAtMinutes)
 
   const current = entries.find((e) => e.status === 'now') ?? null
@@ -112,7 +154,10 @@ export function buildToday(input: {
   if (upcoming) upcoming.status = 'next'
 
   // Which lists matter today: those attached to any of today's routines, plus daily-reset lists.
-  const attachedIds = new Set(entries.flatMap((e) => e.routine.checklistIds))
+  const attachedIds = new Set([
+    ...entries.flatMap((e) => e.routine?.checklistIds ?? []),
+    ...reminders.filter((r) => r.enabled && r.checklistId).map((r) => r.checklistId!),
+  ])
   const relevant = checklists.filter(
     (c) => attachedIds.has(c.id) || c.resetRule.kind === 'daily',
   )

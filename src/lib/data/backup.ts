@@ -5,7 +5,7 @@ import {
   EXPORT_FORMAT, EXPORT_VERSION,
   type ActivityEvent, type AppSettings, type Automation, type Checklist,
   type ChecklistRun, type CommuteProfile, type CommuteSession,
-  type ExportEnvelope, type Place, type Routine,
+  type ExportEnvelope, type Place, type Reminder, type Routine,
 } from '@/lib/types'
 import * as store from '@/lib/db/sqlite'
 import * as repo from '@/lib/db/repo'
@@ -33,6 +33,7 @@ export function buildEnvelope(): ExportEnvelope {
       checklists: store.all<Checklist>('checklists', { includeDeleted: true }),
       checklistRuns: store.all<ChecklistRun>('checklistRuns'),
       routines: store.all<Routine>('routines', { includeDeleted: true }),
+      reminders: store.all<Reminder>('reminders', { includeDeleted: true }),
       automations: store.all<Automation>('automations', { includeDeleted: true }),
       commuteProfiles: store.all<CommuteProfile>('commuteProfiles', { includeDeleted: true }),
       commuteSessions: store.all<CommuteSession>('commuteSessions'),
@@ -125,6 +126,7 @@ export function restore(envelope: ExportEnvelope): Record<string, number> {
   load('checklists', d.checklists)
   load('checklistRuns', d.checklistRuns)
   load('routines', d.routines)
+  load('reminders', d.reminders)
   load('automations', d.automations)
   load('commuteProfiles', d.commuteProfiles)
   load('commuteSessions', d.commuteSessions)

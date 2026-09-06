@@ -3,7 +3,8 @@ import { View, StyleSheet } from 'react-native'
 import { useRouter } from 'expo-router'
 import Animated, { FadeInDown } from 'react-native-reanimated'
 import { Screen } from '@/components/ui/Screen'
-import { ScreenHeader } from '@/components/ui/ScreenHeader'
+import { DetailHeader } from '@/components/ui/DetailHeader'
+import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Text } from '@/components/ui/Text'
 import { Icon, IconBadge, type IconName } from '@/components/ui/Icon'
@@ -26,11 +27,17 @@ export default function PlansScreen() {
 
   return (
     <Screen>
-      <ScreenHeader
-        title={S.nav.dayPlans}
-        help={S.plan.help}
-        onAdd={() => router.push('/plan/new')}
-        addLabel={S.plan.addOne}
+      <DetailHeader title={S.nav.dayPlans} />
+      <Text variant="caption" tone="muted" style={{ marginTop: -space.md, marginBottom: space.lg }}>
+        {S.plan.help}
+      </Text>
+      <Button
+        label={S.plan.addOne}
+        icon="plus"
+        variant="secondary"
+        full
+        style={{ marginBottom: space.lg }}
+        onPress={() => router.push('/plan/new')}
       />
 
       {routines.length === 0 ? (

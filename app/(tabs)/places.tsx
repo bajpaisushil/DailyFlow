@@ -64,6 +64,36 @@ export default function PlacesScreen() {
         />
       ) : null}
 
+      {/* Home and Work first, as named slots. Almost every reminder a person sets involves
+          one of these two, so they are worth a single tap rather than a trip through a
+          generic "add a place" form. */}
+      <View style={styles.quick}>
+        {(['Home', 'Work'] as const).map((label) => {
+          const saved = places.find((p) => p.name.toLowerCase() === label.toLowerCase())
+          const icon: IconName = label === 'Home' ? 'home' : 'work'
+          return (
+            <PressableScale
+              key={label}
+              depth="sm"
+              onPress={() =>
+                router.push(saved ? `/place/${saved.id}` : `/place/new?name=${label}`)
+              }
+              accessibilityRole="button"
+              accessibilityLabel={saved ? `${label}, saved` : `Add ${label}`}
+              style={{ flex: 1 }}
+            >
+              <Card tone={saved ? 'raised' : 'flat'} style={styles.quickCard}>
+                <IconBadge name={icon} plate={44} size={22} />
+                <Text variant="heading" numberOfLines={1}>{label}</Text>
+                <Text variant="caption" tone={saved ? 'muted' : 'faint'} numberOfLines={1}>
+                  {saved?.address ?? (saved ? 'Saved' : 'Not set')}
+                </Text>
+              </Card>
+            </PressableScale>
+          )
+        })}
+      </View>
+
       {places.length === 0 ? (
         <EmptyState
           icon="place"
@@ -80,7 +110,9 @@ export default function PlacesScreen() {
                 <IconBadge name={(place.icon as IconName) ?? 'place'} />
                 <View style={styles.text}>
                   <Text variant="heading">{place.name}</Text>
-                  <Text variant="caption" tone="muted">{describeRadius(place.radiusM)}</Text>
+                  <Text variant="caption" tone="muted" numberOfLines={1}>
+                    {place.address ?? describeRadius(place.radiusM)}
+                  </Text>
                 </View>
                 <Icon name="forward" size={20} color={c.inkFaint} />
               </Card>
@@ -95,5 +127,7 @@ export default function PlacesScreen() {
 const styles = StyleSheet.create({
   card: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginBottom: space.md },
   text: { flex: 1, gap: 2 },
+  quick: { flexDirection: 'row', gap: space.md, marginBottom: space.lg },
+  quickCard: { alignItems: 'flex-start', gap: space.sm, minHeight: 130 },
   notice: { flexDirection: 'row', alignItems: 'center', gap: space.md },
 })

@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { buildToday, describeWait, phaseOf } from './today.ts'
-import type { Checklist, ChecklistRun, Place, Routine } from './types.ts'
+import type { Checklist, ChecklistRun, Place, Reminder, Routine, Weekday } from './types.ts'
 
 /** Minimal fixtures — only the fields buildToday actually reads. */
 const now = (h: number, m = 0) => new Date(2026, 8, 7, h, m) // 2026-09-07 is a Monday
@@ -49,7 +49,7 @@ describe('phaseOf', () => {
 describe('buildToday — what is happening', () => {
   it('shows a routine as "now" inside its window and "past" after it', () => {
     const r = [routine({ startTime: '07:00', endTime: '09:00' })]
-    assert.equal(build({ now: now(8), routines: r }).current?.routine.id, 'r1')
+    assert.equal(build({ now: now(8), routines: r }).current?.id, 'r1')
     assert.equal(build({ now: now(10), routines: r }).entries[0]!.status, 'past')
   })
 
@@ -59,8 +59,8 @@ describe('buildToday — what is happening', () => {
       routine({ id: 'b', name: 'Work', startTime: '09:00' }),
     ]
     const model = build({ now: now(7), routines: r })
-    assert.equal(model.next?.routine.id, 'b')
-    assert.equal(model.entries[0]!.routine.id, 'b') // sorted by time
+    assert.equal(model.next?.id, 'b')
+    assert.equal(model.entries[0]!.id, 'b') // sorted by time
   })
 
   it('ignores routines that do not run today', () => {
@@ -73,6 +73,55 @@ describe('buildToday — what is happening', () => {
   it('ignores disabled routines', () => {
     const model = build({ now: now(9), routines: [routine({ enabled: false })] })
     assert.equal(model.isFreeDay, true)
+  })
+})
+
+describe('buildToday — reminders on the timeline', () => {
+  const reminder = (over: Partial<Reminder> = {}): Reminder => ({
+    id: 'rem1', title: 'Take my medicine', icon: 'pills', enabled: true,
+    times: ['09:00'], days: [1, 2, 3, 4, 5] as Weekday[], placeTriggers: [], leadMinutes: [0],
+    priority: 'normal', sound: true, vibrate: true,
+    createdAt: 0, updatedAt: 0, ...over,
+  })
+
+  it('shows a reminder alongside day plans', () => {
+    const model = buildToday({
+      now: now(7), routines: [], reminders: [reminder()],
+      places: [], checklists: [], runs: [],
+    })
+    assert.equal(model.entries.length, 1)
+    assert.equal(model.entries[0]!.title, 'Take my medicine')
+    assert.equal(model.entries[0]!.source, 'reminder')
+  })
+
+  it('gives each of a reminder\'s times its own row', () => {
+    // 09:00 and 21:00 are two separate things happening today.
+    const model = buildToday({
+      now: now(7), routines: [], reminders: [reminder({ times: ['09:00', '21:00'] })],
+      places: [], checklists: [], runs: [],
+    })
+    assert.equal(model.entries.length, 2)
+  })
+
+  it('leaves a purely location-based reminder off the timeline', () => {
+    // It has no time, so it cannot honestly be placed on a clock.
+    const model = buildToday({
+      now: now(7), routines: [],
+      reminders: [reminder({ times: [], placeTriggers: [{ id: 'x', placeId: 'home', on: 'leave' }] })],
+      places: [], checklists: [], runs: [],
+    })
+    assert.equal(model.entries.length, 0)
+  })
+
+  it('sorts reminders and day plans together by time', () => {
+    const model = buildToday({
+      now: now(6),
+      routines: [routine({ id: 'plan', name: 'Work', startTime: '08:00' })],
+      reminders: [reminder({ times: ['07:00'] })],
+      places: [], checklists: [], runs: [],
+    })
+    assert.equal(model.entries[0]!.source, 'reminder')
+    assert.equal(model.entries[1]!.source, 'routine')
   })
 })
 

@@ -41,6 +41,7 @@ function Shell() {
         {/* Creating something is a modal: it is a self-contained task with a clear end, it
             gets a native swipe-to-dismiss for free, and it stops the create flows looking
             like another destination in the same flat hierarchy. */}
+        <Stack.Screen name="reminder/[id]" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         <Stack.Screen name="place/[id]" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         <Stack.Screen name="plan/[id]" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         <Stack.Screen name="list/[id]" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
