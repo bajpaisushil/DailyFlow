@@ -1,4 +1,5 @@
 import * as repo from '@/lib/db/repo'
+import { getDb } from '@/lib/db/sqlite'
 import { resyncAll } from './apply'
 import { syncGeofences } from '@/lib/location/geofence'
 import { localDateKey } from '@/lib/time'
@@ -22,6 +23,7 @@ export interface BootReport {
 
 export async function boot(): Promise<BootReport> {
   resetDueChecklists()
+  backfillSortKeys()
   prune()
 
   const [schedule, geofence] = await Promise.all([resyncAll(), syncGeofences()])
@@ -51,6 +53,30 @@ function resetDueChecklists(): void {
       // Leave the historical row alone; pruning removes it on schedule.
       continue
     }
+  }
+}
+
+/**
+ * Repair rows written before `sortKeyOf` knew about checklistRuns.
+ *
+ * Those were stored with a NULL sort key, and pruning filters on that column — so they could
+ * never be removed, however old. Fixing the function forward is not enough; the existing rows
+ * have to be given their key back or they are immortal.
+ */
+function backfillSortKeys(): void {
+  try {
+    const db = getDb()
+    const rows = db.getAllSync<{ id: string; doc: string }>(
+      `SELECT id, doc FROM checklistRuns WHERE sort IS NULL`,
+    )
+    for (const row of rows) {
+      const parsed = JSON.parse(row.doc) as { startedAt?: number }
+      if (typeof parsed.startedAt === 'number') {
+        db.runSync(`UPDATE checklistRuns SET sort = ? WHERE id = ?`, [parsed.startedAt, row.id])
+      }
+    }
+  } catch {
+    // A failed backfill costs disk, not correctness. Never block startup for it.
   }
 }
 

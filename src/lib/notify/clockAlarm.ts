@@ -28,9 +28,18 @@ export function clockAlarmSupported(): boolean {
 export interface ClockAlarmRequest {
   time: HHMM
   label: string
-  /** 1 = Sunday … 7 = Saturday, matching the Android alarm intent. */
-  weekdays?: number[]
 }
+
+/**
+ * This creates a SINGLE alarm, not a repeating one.
+ *
+ * Android's SET_ALARM takes the repeat days as an integer array, and React Native's
+ * `Linking.sendIntent` can only carry string, number and boolean extras — there is no way to
+ * express the array through it. Rather than quietly create a one-off where the user asked for
+ * every weekday, the button says what it does, and the Clock app's own screen (which we
+ * deliberately do not skip) lets them add the repetition in one tap.
+ */
+export const CLOCK_ALARM_IS_ONE_OFF = true
 
 /**
  * Ask the Clock app to create an alarm.

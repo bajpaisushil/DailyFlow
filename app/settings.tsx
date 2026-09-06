@@ -14,6 +14,7 @@ import { useData } from '@/stores/data'
 import { useTheme } from '@/theme/ThemeProvider'
 import { openSavedCopy, removeEverything, saveCopy } from '@/lib/data/backup'
 import { resyncAll } from '@/lib/engine/apply'
+import { syncGeofences } from '@/lib/location/geofence'
 import { cancelAll } from '@/lib/notify/scheduler'
 import type { ThemePreference } from '@/lib/types'
 import { space, radius } from '@/theme/tokens'
@@ -46,27 +47,58 @@ export default function SettingsScreen() {
       await saveCopy()
     } catch {
       Alert.alert(S.error.generic, S.error.genericHelp)
+    } finally {
+      setBusy(false)
     }
-    setBusy(false)
   }, [])
 
-  const onOpenCopy = useCallback(async () => {
-    setBusy(true)
-    const result = await openSavedCopy()
-    setBusy(false)
+  /**
+   * Opening a saved copy REPLACES everything. It used to do so from a single tap on a row
+   * labelled "Bring back your things from a saved file", with no warning that what you have
+   * now would be destroyed — and if the file turned out to be unusable it had already begun
+   * clearing tables, leaving a half-wiped database and no message.
+   */
+  const onOpenCopy = useCallback(() => {
+    Alert.alert(
+      'Replace everything?',
+      'Opening a saved copy removes what is in DailyFlow now and puts the saved things in its place. This cannot be undone.',
+      [
+        { text: S.action.goBack, style: 'cancel' },
+        {
+          text: 'Replace',
+          style: 'destructive',
+          onPress: async () => {
+            setBusy(true)
+            try {
+              const result = await openSavedCopy()
+              if (!result.ok) {
+                if (result.reason === 'cancelled') return
+                Alert.alert(
+                  result.reason === 'notOurFile' ? S.error.fileNotOurs : S.error.generic,
+                  result.reason === 'notOurFile' ? S.error.fileNotOursHelp : S.error.genericHelp,
+                )
+                return
+              }
 
-    if (!result.ok) {
-      if (result.reason === 'cancelled') return
-      Alert.alert(
-        result.reason === 'notOurFile' ? S.error.fileNotOurs : S.error.generic,
-        result.reason === 'notOurFile' ? S.error.fileNotOursHelp : S.error.genericHelp,
-      )
-      return
-    }
-
-    refresh()
-    await resyncAll()
-    Alert.alert(S.action.done, 'Your things are back.')
+              refresh()
+              // Geofences must be re-armed too. Without this the OS kept watching the region
+              // list from BEFORE the import, so every restored place reminder was dead until
+              // the app happened to be restarted — with nothing saying so.
+              const [schedule, geofence] = await Promise.all([resyncAll(), syncGeofences()])
+              Alert.alert(
+                S.action.done,
+                `Your things are back. ${schedule.scheduled} reminder${schedule.scheduled === 1 ? '' : 's'} set, ${geofence.watched} place${geofence.watched === 1 ? '' : 's'} being watched.`,
+              )
+            } catch {
+              Alert.alert(S.error.generic, S.error.genericHelp)
+            } finally {
+              // Always clears, so a failure cannot leave the buttons permanently disabled.
+              setBusy(false)
+            }
+          },
+        },
+      ],
+    )
   }, [refresh])
 
   const onRemoveEverything = useCallback(() => {
@@ -179,7 +211,7 @@ export default function SettingsScreen() {
           icon="open"
           label={S.settings.openCopy}
           help={S.settings.openCopyHelp}
-          onPress={() => void onOpenCopy()}
+          onPress={onOpenCopy}
           disabled={busy}
         />
         <RowLink

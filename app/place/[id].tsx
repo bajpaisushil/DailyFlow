@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react'
-import { View, StyleSheet, TextInput, ActivityIndicator } from 'react-native'
+import { View, StyleSheet, TextInput, ActivityIndicator, Alert } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import Animated, { FadeIn } from 'react-native-reanimated'
 import { Screen } from '@/components/ui/Screen'
@@ -48,6 +48,7 @@ export default function PlaceEditor() {
   const places = useData((s) => s.places)
   const savePlace = useData((s) => s.savePlace)
   const removePlace = useData((s) => s.removePlace)
+  const remindersUsingPlace = useData((s) => s.remindersUsingPlace)
 
   const isNew = id === 'new'
   const existing = useMemo(() => places.find((p) => p.id === id), [places, id])
@@ -124,6 +125,9 @@ export default function PlaceEditor() {
     if (!trimmed || !fix) return
     const now = Date.now()
     const doc: Place = {
+      // Preserve anything the editor does not show: note, pinned, colorKey, observedSpeedKmh.
+      // Rebuilding field-by-field quietly discarded the learned travel speed on every edit.
+      ...(existing ?? {}),
       id: existing?.id ?? newId(),
       name: trimmed,
       icon,
@@ -325,8 +329,24 @@ export default function PlaceEditor() {
           full
           style={{ marginTop: space['3xl'] }}
           onPress={() => {
-            removePlace(existing.id)
-            router.back()
+            const affected = remindersUsingPlace(existing.id)
+            Alert.alert(
+              `Remove ${existing.name}?`,
+              affected > 0
+                ? `${affected} reminder${affected === 1 ? '' : 's'} use this place. ${affected === 1 ? 'It' : 'They'} will stop watching for it.`
+                : 'This place will be removed.',
+              [
+                { text: S.action.goBack, style: 'cancel' },
+                {
+                  text: S.action.remove,
+                  style: 'destructive',
+                  onPress: () => {
+                    removePlace(existing.id)
+                    router.back()
+                  },
+                },
+              ],
+            )
           }}
         />
       ) : null}

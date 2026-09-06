@@ -97,19 +97,35 @@ async function handleRegionEvent(placeId: string, entering: boolean): Promise<vo
       runs,
     })
 
-    record(automation, occurrenceKey, decision, notify.params.title)
-
-    if (decision.allow) {
-      await notifyNow({
-        title: notify.params.title,
-        body: notify.params.body,
-        priority: notify.params.priority,
-        // Was dropped here, so "wake me before my stop" — the one case the alarm channel
-        // exists for — arrived as an ordinary notification at normal importance.
-        alertStyle: notify.params.alertStyle,
-        toneId: notify.params.toneId,
-      })
+    if (!decision.allow) {
+      record(automation, occurrenceKey, decision, notify.params.title)
+      continue
     }
+
+    const delivered = await notifyNow({
+      title: notify.params.title,
+      body: notify.params.body,
+      priority: notify.params.priority,
+      // Was dropped here, so "wake me before my stop" — the one case the alarm channel
+      // exists for — arrived as an ordinary notification at normal importance.
+      alertStyle: notify.params.alertStyle,
+      toneId: notify.params.toneId,
+    })
+
+    /**
+     * The ledger is written AFTER the attempt, and records what actually happened.
+     *
+     * It used to be written first, marking the firing 'fired' before delivery was tried. If
+     * the notification then failed — permission revoked, the module unavailable — the ledger
+     * said it had been delivered, so the dedup key blocked every future attempt and the user
+     * never got that reminder again. A silent, permanent loss.
+     */
+    record(
+      automation,
+      occurrenceKey,
+      delivered ? decision : { allow: false, reason: 'Your phone would not show it.' },
+      notify.params.title,
+    )
   }
 }
 

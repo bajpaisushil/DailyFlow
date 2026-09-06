@@ -140,6 +140,9 @@ export default function ReminderEditor() {
 
     const now = Date.now()
     const doc: Reminder = {
+      // Spread the existing record first so fields this screen does not surface — message,
+      // startsOn, colorKey — survive a save instead of being silently dropped.
+      ...(existing ?? {}),
       id: existing?.id ?? newId(),
       title: title.trim(),
       icon,
@@ -524,25 +527,41 @@ export default function ReminderEditor() {
         {/* Says what an alarm here actually is. Calling a loud notification an "alarm"
             without qualification is the kind of small dishonesty that gets someone to their
             stop late, so the difference is stated and the real thing is offered. */}
-        {(alertStyle === 'alarm' || alertStyle === 'both') && clockAlarmSupported() ? (
+        {/* The explanation is NOT gated on the platform. It used to be bundled with the
+            Clock button behind an Android-only check, so an iPhone user tapped a card
+            labelled "An alarm — Loud, to wake you", was told nothing further, and received an
+            ordinary banner. That is the weakest behaviour paired with the least warning,
+            which is the opposite of what this app promises. */}
+        {alertStyle === 'alarm' || alertStyle === 'both' ? (
           <Card tone="flat" style={{ marginBottom: space.sm }}>
             <Text variant="caption" tone="muted">
-              DailyFlow&apos;s alarm is loud and vibrates, but it sounds once — it will not
-              ring until you turn it off. For something you must not sleep through, also set
-              it in your phone&apos;s Clock.
+              {clockAlarmSupported()
+                ? 'DailyFlow’s alarm is loud and vibrates, but it sounds once — it will not ring until you turn it off. For something you must not sleep through, also set it in your phone’s Clock.'
+                : 'DailyFlow’s alarm shows even through Focus and Do Not Disturb, but it sounds once — it will not ring until you turn it off. Only Apple’s Clock app can do that, so for something you must not sleep through, set an alarm there too.'}
             </Text>
-            <Button
-              label="Also set a Clock alarm"
-              icon="clock"
-              variant="secondary"
-              full
-              style={{ marginTop: space.md }}
-              disabled={times.length === 0}
-              onPress={() => {
-                const first = times[0]
-                if (first) void setClockAlarm({ time: first, label: title.trim() || 'DailyFlow' })
-              }}
-            />
+            {clockAlarmSupported() ? (
+              <>
+                <Text variant="caption" tone="faint" style={{ marginTop: space.sm }}>
+                  {times.length > 1 || (days.length > 0 && days.length < 7)
+                    ? 'This sets one alarm, for the first time. Your Clock app can make it repeat.'
+                    : 'Your Clock app will open so you can check it.'}
+                </Text>
+                <Button
+                label="Also set a Clock alarm"
+                icon="clock"
+                variant="secondary"
+                full
+                style={{ marginTop: space.md }}
+                disabled={times.length === 0}
+                onPress={() => {
+                  const first = times[0]
+                  if (first) {
+                    void setClockAlarm({ time: first, label: title.trim() || 'DailyFlow' })
+                  }
+                }}
+                />
+              </>
+            ) : null}
           </Card>
         ) : null}
 

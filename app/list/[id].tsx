@@ -63,6 +63,7 @@ export default function ListEditor() {
     if (!trimmed) return
     const now = Date.now()
     const doc: Checklist = {
+      ...(existing ?? {}),
       id: existing?.id ?? newId(),
       name: trimmed,
       icon,

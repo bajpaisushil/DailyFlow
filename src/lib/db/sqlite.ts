@@ -88,6 +88,11 @@ function sortKeyOf(collection: Collection, doc: Record<string, unknown>): number
       return typeof doc.at === 'number' ? doc.at : typeof doc.firedAt === 'number' ? doc.firedAt : null
     case 'commuteSessions':
       return typeof doc.startedAt === 'number' ? doc.startedAt : null
+    // ChecklistRun has startedAt, not createdAt. Falling through to the default meant every
+    // run was stored with a NULL sort key, and pruning — which filters on `sort` — could
+    // never match a single row. The table grew forever.
+    case 'checklistRuns':
+      return typeof doc.startedAt === 'number' ? doc.startedAt : null
     default:
       return typeof doc.createdAt === 'number' ? doc.createdAt : null
   }
@@ -152,11 +157,35 @@ export function count(collection: Collection): number {
   return row?.n ?? 0
 }
 
-/** Soft delete keeps history coherent and makes export round-trips honest. */
+/**
+ * Soft delete.
+ *
+ * The tombstone must go into the DOCUMENT as well as the column. It used to be written only
+ * to `deleted_at`, while export reads the stored JSON — so every reminder, place and list the
+ * user had ever deleted came back to life the moment they restored a backup on a new phone.
+ * The row was correctly hidden everywhere except the one place it mattered most.
+ */
 export function softDelete(collection: Collection, id: string): void {
   const db = getDb()
   const now = Date.now()
-  db.runSync(`UPDATE ${collection} SET deleted_at = ?, updated_at = ? WHERE id = ?`, [now, now, id])
+  const row = db.getFirstSync<Row>(`SELECT doc FROM ${collection} WHERE id = ?`, [id])
+  if (!row) return
+
+  let doc: Record<string, unknown>
+  try {
+    doc = JSON.parse(row.doc) as Record<string, unknown>
+  } catch {
+    // Unparseable document: still tombstone the row so it disappears from every list.
+    db.runSync(`UPDATE ${collection} SET deleted_at = ?, updated_at = ? WHERE id = ?`, [now, now, id])
+    return
+  }
+
+  doc.deletedAt = now
+  doc.updatedAt = now
+  db.runSync(
+    `UPDATE ${collection} SET doc = ?, deleted_at = ?, updated_at = ? WHERE id = ?`,
+    [JSON.stringify(doc), now, now, id],
+  )
 }
 
 export function hardDelete(collection: Collection, id: string): void {

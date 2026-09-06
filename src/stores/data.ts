@@ -27,6 +27,7 @@ interface DataState {
 
   savePlace: (p: Place) => void
   removePlace: (id: string) => void
+  remindersUsingPlace: (id: string) => number
   saveChecklist: (c: Checklist) => void
   removeChecklist: (id: string) => void
   saveRoutine: (r: Routine) => void
@@ -64,11 +65,34 @@ export const useData = create<DataState>((set, get) => ({
     // The OS holds the region list, so it must be refreshed whenever places change.
     void syncGeofences()
   },
+  /**
+   * Deleting a place also cleans up what pointed at it.
+   *
+   * Without this the reminders survived, still marked enabled, still showing a "1 place"
+   * badge, describing themselves as "When you reach a place" — and could never fire again,
+   * because the place they named was gone. A reminder that cannot fire and does not say so is
+   * the worst state in this app.
+   */
   removePlace: (id) => {
+    for (const reminder of repo.reminders.all()) {
+      if (!reminder.placeTriggers.some((t) => t.placeId === id)) continue
+      const remaining = reminder.placeTriggers.filter((t) => t.placeId !== id)
+      repo.reminders.save({
+        ...reminder,
+        placeTriggers: remaining,
+        // A reminder left with nothing to fire on is disabled rather than left as a corpse
+        // that looks active.
+        enabled: reminder.enabled && (remaining.length > 0 || reminder.times.length > 0),
+      })
+    }
     repo.places.remove(id)
-    set({ places: repo.places.all() })
+    set({ places: repo.places.all(), reminders: repo.reminders.all() })
     void syncGeofences()
   },
+
+  /** How many reminders would be affected by deleting this place, so the user can be warned. */
+  remindersUsingPlace: (id) =>
+    repo.reminders.all().filter((r) => r.placeTriggers.some((t) => t.placeId === id)).length,
 
   saveChecklist: (c) => {
     repo.checklists.save(c)

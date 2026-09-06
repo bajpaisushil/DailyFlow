@@ -287,6 +287,25 @@ export async function syncSchedules(
               : plan.priority === 'quiet'
                 ? N.AndroidNotificationPriority.LOW
                 : N.AndroidNotificationPriority.HIGH,
+          /**
+           * iOS has no channels; importance is carried per-notification by the interruption
+           * level. Without this, `alertStyle` was read and discarded on iOS — an alarm and an
+           * ordinary reminder produced byte-identical requests, so the alarm was swallowed by
+           * any Focus mode and held by Scheduled Summary.
+           *
+           * 'critical' is deliberately not used: it needs an entitlement Apple grants only on
+           * application, and shipping without it would mean the level is silently ignored.
+           */
+          ...(Platform.OS === 'ios'
+            ? {
+                interruptionLevel:
+                  plan.alertStyle === 'alarm' || plan.priority === 'important'
+                    ? ('timeSensitive' as const)
+                    : plan.priority === 'quiet'
+                      ? ('passive' as const)
+                      : ('active' as const),
+              }
+            : {}),
           // An alarm goes to its own maximum-importance channel with the alarm audio
           // stream, so it sounds when the phone is set to allow alarms only.
           ...(Platform.OS === 'android'
@@ -328,10 +347,10 @@ export async function notifyNow(input: {
   alertStyle?: 'notification' | 'alarm'
   toneId?: string
   inSeconds?: number
-}): Promise<void> {
+}): Promise<boolean> {
   const N = load()
-  if (!N) return
-  if ((await readPermission()) !== 'granted') return
+  if (!N) return false
+  if ((await readPermission()) !== 'granted') return false
 
   try {
     // Android drops a notification to the default channel if the channel it names does not
@@ -357,8 +376,10 @@ export async function notifyNow(input: {
         ? { type: N.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: input.inSeconds }
         : null,
     })
+    return true
   } catch {
-    // Nothing to recover: the reminder simply is not shown, and the ledger records that.
+    // Reported rather than swallowed, so the ledger can record a miss instead of a delivery.
+    return false
   }
 }
 
@@ -403,6 +424,25 @@ function describeTrigger(trigger: unknown): string {
 
   const pad = (n: unknown) => String(n).padStart(2, '0')
   const type = String(t.type ?? '')
+
+  /**
+   * iOS names its triggers differently: DAILY and WEEKLY both serialise as 'calendar' with
+   * the parts inside dateComponents, and a DATE trigger comes back as 'timeInterval'. The
+   * screen that exists to tell a scheduling bug from a permission problem was printing
+   * nonsense on exactly the platform where you would most need it.
+   */
+  if (type.includes('calendar')) {
+    const parts = t.dateComponents as Record<string, number> | undefined
+    if (parts) {
+      const at = `${pad(parts.hour ?? 0)}:${pad(parts.minute ?? 0)}`
+      if (typeof parts.weekday === 'number') {
+        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+        return `Every ${days[parts.weekday - 1] ?? '?'} at ${at}`
+      }
+      return `Every day at ${at}`
+    }
+    return 'On a schedule'
+  }
 
   if (type.includes('daily')) return `Every day at ${pad(t.hour)}:${pad(t.minute)}`
   if (type.includes('weekly')) {
