@@ -274,3 +274,38 @@ The design was wrong, not just the code. A reminder deliberately set for 06:45 i
 editor warns where the user can act on it.
 
 **Every fix has a test.** 264 passing.
+
+## Queue from the second round of testing on a real phone
+
+| # | What was asked | State |
+|---|---|---|
+| 83 | Done button as a **dynamic overlay**, not at the bottom of a long scroll | done — `SaveBar` now in every editor, not just one |
+| 84 | The **pause/stop button in the audio picker did nothing** | done — the player publishes what is playing (`onPlaybackChange`), so the icon is the truth rather than a guess |
+| 85 | When already at the temple, **stop saying "leave for the temple"** | done — `presence.ts` derives where you are from the geofence log |
+| 86 | **Save the chosen sound** instead of hunting for the file again | done — every sound already in app storage is offered back by name |
+| 87 | **Reset the "take with you" list when the time comes round again** | done — runs are keyed by occurrence, not by date |
+| 88 | Separate, clearly labelled settings for **alarm vs notification** | done |
+| 89 | **Confirmation dialogs** instead of buttons that delete immediately | done |
+| 90 | Fewer taps: **choosing a time should not need a second Done** | done — the OS picker opens straight away and commits on choose |
+| 91 | Adding a time **scrolled under the keyboard** | done — `KeyboardAvoidingView` + `softwareKeyboardLayoutMode: "resize"` |
+| 92 | One reminder must not arrive **twice** from its time and its place | done — a 30-minute same-reminder cooldown across triggers |
+| 93 | **The chosen audio played as the phone's default sound** | done — see below |
+
+## Why a chosen sound was never heard, and what now happens
+
+The OS will not play it. An Android notification takes its sound from its channel; a channel
+can only name a resource **compiled into the app**, and its sound is frozen the moment the
+channel is created. iOS wants its sounds in the bundle at build time. A file picked from the
+phone at runtime is neither, so Android quietly substituted the default — and nothing in the
+app said why. **It was never a length limit**, which is what it looks like from outside.
+(There *is* a length limit, but only on iOS: 30 seconds, over which it also falls back.)
+
+So DailyFlow plays the file itself. AlarmManager wakes the native module in a new `sound`
+style — no screen takeover, no looping — and it plays the file through at notification volume,
+leaving the reminder in the shade to be read and tapped. The OS schedule skips exactly those
+reminders, so nothing arrives twice; that is why alarms are now synced **before** notifications
+rather than alongside them.
+
+Where the native module does not exist — iOS, Expo Go — it genuinely cannot be done, and the
+picker says so and offers one tap to make it an alarm instead. That is the difference between a
+limit the user can work around and one they discover at 6am.
