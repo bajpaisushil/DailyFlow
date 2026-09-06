@@ -127,12 +127,19 @@ export function stopAlarm(): void {
 }
 
 /**
- * Schedule an alarm for a wall-clock moment.
+ * What happened to a scheduled firing.
  *
- * Returns whether it was scheduled EXACTLY. From Android 12 an exact alarm needs permission;
- * without it the alarm still happens but may drift by minutes, which the UI should say rather
- * than let someone believe a 6am alarm is precise when it is not.
+ * 'inexact' and 'failed' were once the same `false`, which was dangerous: the notification
+ * scheduler skips reminders this path has claimed, so a failure that looked like a mere
+ * imprecision meant the reminder made no sound AND was never posted. It simply vanished.
+ *
+ * 'inexact' — scheduled, but Android would not grant an exact alarm, so it may drift by
+ * minutes. The UI should say so rather than let someone trust a 6am alarm that is not precise.
+ * 'failed' — not scheduled at all. The caller must not claim the reminder.
  */
+export type ScheduleOutcome = 'exact' | 'inexact' | 'failed'
+
+/** Schedule an alarm for a wall-clock moment. */
 export function scheduleAlarm(input: {
   id: string
   at: number
@@ -142,10 +149,10 @@ export function scheduleAlarm(input: {
   durationSeconds?: number
   vibrate?: boolean
   style?: FiringStyle
-}): boolean {
-  if (!native) return false
+}): ScheduleOutcome {
+  if (!native) return 'failed'
   try {
-    return native.schedule(
+    const exact = native.schedule(
       input.id,
       input.at,
       input.title,
@@ -155,8 +162,9 @@ export function scheduleAlarm(input: {
       input.vibrate ?? true,
       input.style ?? 'alarm',
     )
+    return exact ? 'exact' : 'inexact'
   } catch {
-    return false
+    return 'failed'
   }
 }
 

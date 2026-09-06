@@ -54,7 +54,7 @@ export function syncAlarms(reminders: Reminder[], previousIds: string[] = []): A
 
   for (const reminder of reminders) {
     for (const at of alarmOccurrences(reminder, now)) {
-      const wasExact = scheduleAlarm({
+      const outcome = scheduleAlarm({
         id: alarmId(reminder.id, at),
         at,
         title: reminder.title,
@@ -64,8 +64,8 @@ export function syncAlarms(reminders: Reminder[], previousIds: string[] = []): A
         vibrate: reminder.vibrate,
         style: 'alarm',
       })
-      if (!wasExact) exact = false
-      scheduled += 1
+      if (outcome === 'inexact') exact = false
+      if (outcome !== 'failed') scheduled += 1
     }
 
     /**
@@ -83,9 +83,15 @@ export function syncAlarms(reminders: Reminder[], previousIds: string[] = []): A
     const moments = ownSoundOccurrences(reminder, now)
     if (moments.length === 0) continue
 
-    ownSoundReminderIds.push(reminder.id)
+    /**
+     * Claimed only once a firing has ACTUALLY been scheduled. The notification scheduler skips
+     * whatever appears here, so claiming a reminder whose native schedule failed would leave it
+     * with no sound and no notification — gone entirely, which is far worse than the wrong
+     * sound this whole path exists to fix.
+     */
+    let anyScheduled = false
     for (const at of moments) {
-      const wasExact = scheduleAlarm({
+      const outcome = scheduleAlarm({
         id: alarmId(reminder.id, at),
         at,
         title: reminder.title,
@@ -97,9 +103,12 @@ export function syncAlarms(reminders: Reminder[], previousIds: string[] = []): A
         vibrate: reminder.vibrate,
         style: 'sound',
       })
-      if (!wasExact) exact = false
+      if (outcome === 'inexact') exact = false
+      if (outcome === 'failed') continue
+      anyScheduled = true
       scheduled += 1
     }
+    if (anyScheduled) ownSoundReminderIds.push(reminder.id)
   }
 
   return { scheduled, exact, available: true, ownSoundReminderIds }

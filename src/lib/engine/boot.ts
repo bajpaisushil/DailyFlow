@@ -1,4 +1,5 @@
 import * as repo from '@/lib/db/repo'
+import { pruneUnusedSounds } from '@/lib/notify/customSound'
 import { getDb } from '@/lib/db/sqlite'
 import { resyncAll } from './apply'
 import { resyncAlarms } from './applyReminder'
@@ -27,6 +28,7 @@ export async function boot(): Promise<BootReport> {
   resetDueChecklists()
   backfillSortKeys()
   prune()
+  pruneOrphanSounds()
 
   // Alarms are laid out only two weeks ahead, so every start extends the horizon — and this
   // is also what restores them after a reboot, when AlarmManager forgets everything.
@@ -90,6 +92,21 @@ function backfillSortKeys(): void {
   } catch {
     // A failed backfill costs disk, not correctness. Never block startup for it.
   }
+}
+
+/**
+ * Delete chosen sound files no reminder refers to any more.
+ *
+ * Removing a sound from a reminder deliberately does NOT delete the file — another reminder
+ * may be ringing with it. That leaves the disk to be tidied here, where the whole set of
+ * reminders is visible and "nothing refers to this" can actually be established.
+ */
+function pruneOrphanSounds(): void {
+  const inUse = repo.reminders
+    .all()
+    .map((r) => r.soundFile)
+    .filter((f): f is string => !!f)
+  pruneUnusedSounds(inUse)
 }
 
 /** Keeps the disposable tables bounded. Cheap, and prevents unbounded growth over months. */

@@ -6,7 +6,7 @@ import { Icon } from '@/components/ui/Icon'
 import { PressableScale } from '@/components/ui/PressableScale'
 import { Button } from '@/components/ui/Button'
 import { TONES, type ToneId } from '@/lib/notify/tones'
-import { pickSound, deleteSound, savedSounds, type ChosenSound } from '@/lib/notify/customSound'
+import { pickSound, savedSounds, type ChosenSound } from '@/lib/notify/customSound'
 import { alarmModuleAvailable } from '../../../modules/dailyflow-alarm'
 
 /**
@@ -171,11 +171,16 @@ export function SoundPicker({
             <PressableScale
               onPress={() => {
                 void stopSound()
-                deleteSound(soundFile)
+                /**
+                 * Only the REFERENCE is dropped, never the file. Sounds are shared now — a
+                 * file this reminder stops using may be the one another reminder rings with,
+                 * and deleting it here would silently break that one. Files nothing refers to
+                 * are cleared away at startup by `pruneUnusedSounds`.
+                 */
                 onCustomChange(undefined, undefined)
               }}
               accessibilityRole="button"
-              accessibilityLabel="Remove this sound"
+              accessibilityLabel="Stop using this sound"
               style={styles.iconBtn}
             >
               <Icon name="close" size={19} color={c.inkFaint} />
