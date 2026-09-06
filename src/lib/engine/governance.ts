@@ -1,6 +1,6 @@
 import type { Automation, AppSettings, Checklist, ChecklistRun, NotificationPriority } from '@/lib/types'
 import { isWithinWindow, localDateKey, minutesOfDay } from '@/lib/time'
-import { firings, activity } from '@/lib/db/repo'
+import { activity, automations, firings } from '@/lib/db/repo'
 
 /**
  * Notification governance (REQUIREMENTS.md #31).
@@ -32,6 +32,37 @@ export interface GovernanceInput {
   runs: ChecklistRun[]
 }
 
+/**
+ * How close together two firings of the SAME reminder are treated as one.
+ *
+ * Long enough that a time trigger and an arrival minutes apart do not both shout; short enough
+ * that a genuine second dose hours later still arrives.
+ */
+export const SAME_REMINDER_COOLDOWN_MS = 30 * 60 * 1000
+
+/**
+ * When this reminder last actually reached the user, by any of its triggers.
+ * Returns null if it never has.
+ */
+function mostRecentFiringForReminder(reminderId: string, now: Date): number | null {
+  const automationIds = new Set(
+    automations
+      .all()
+      .filter((a) => a.sourceReminderId === reminderId)
+      .map((a) => a.id),
+  )
+  if (automationIds.size === 0) return null
+
+  let latest: number | null = null
+  for (const firing of firings.recent()) {
+    if (firing.outcome !== 'fired') continue
+    if (!automationIds.has(firing.automationId)) continue
+    if (firing.firedAt > now.getTime()) continue
+    if (latest == null || firing.firedAt > latest) latest = firing.firedAt
+  }
+  return latest
+}
+
 /** Deterministic key: one row per intended occurrence, stable across restarts. */
 export function dedupeKey(automationId: string, occurrenceKey: string): string {
   return `${automationId}:${occurrenceKey}`
@@ -56,6 +87,22 @@ export function decide(input: GovernanceInput): Decision {
     const listId = notify?.kind === 'notify' ? notify.params.includeChecklistId : undefined
     if (listId && isChecklistDone(listId, checklists, runs, now)) {
       return { allow: false, reason: 'You already ticked everything.' }
+    }
+  }
+
+  /**
+   * 3b. The same REMINDER already reached the user by another route.
+   *
+   * A reminder can carry both a time and a place — "take my medicine at 9, and remind me when
+   * I get home in case I forgot" — and those compile to separate automations with separate
+   * dedup keys. Walking in at 9:05 therefore produced TWO notifications for one thing, which
+   * is exactly the nagging the governance pipeline exists to prevent. The reminder is the
+   * unit the user thinks in, so it is the unit that gets the cooldown.
+   */
+  if (automation.sourceReminderId) {
+    const siblingFiredAt = mostRecentFiringForReminder(automation.sourceReminderId, now)
+    if (siblingFiredAt != null && now.getTime() - siblingFiredAt < SAME_REMINDER_COOLDOWN_MS) {
+      return { allow: false, reason: 'You have just been told about this.' }
     }
   }
 

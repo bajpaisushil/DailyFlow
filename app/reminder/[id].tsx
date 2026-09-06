@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react'
-import { View, StyleSheet, TextInput, Alert } from 'react-native'
+import { View, StyleSheet, TextInput, Alert, Platform } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import Animated, { FadeIn, LinearTransition } from 'react-native-reanimated'
 import { Screen } from '@/components/ui/Screen'
@@ -261,33 +261,31 @@ export default function ReminderEditor() {
           </Animated.View>
         ))}
 
+        {/* Picking a time commits it. There used to be an intermediate card with its own
+            Add button, so adding one time cost three taps -- open, pick, confirm -- on top of
+            the OS picker's own confirmation. The picker's OK IS the confirmation. */}
         {addingTime ? (
-          <Card tone="flat">
-            <TimePicker value={draftTime} onChange={setDraftTime} />
-            <View style={styles.addActions}>
-              <Button
-                label={S.action.goBack}
-                variant="quiet"
-                onPress={() => {
-                  setAddingTime(false)
-                  setEditingTime(null)
-                }}
-              />
-              <Button
-                label={editingTime ? S.action.done : S.action.add}
-                icon="check"
-                onPress={() => {
-                  setTimes((prev) => {
-                    // Editing replaces the original; adding just appends.
-                    const without = editingTime ? prev.filter((x) => x !== editingTime) : prev
-                    return [...new Set([...without, draftTime])].sort()
-                  })
-                  setAddingTime(false)
-                  setEditingTime(null)
-                }}
-              />
-            </View>
-          </Card>
+          <TimePicker
+            value={draftTime}
+            onChange={(next) => {
+              setTimes((prev) => {
+                const without = editingTime ? prev.filter((x) => x !== editingTime) : prev
+                return [...new Set([...without, next])].sort()
+              })
+              setDraftTime(next)
+              // On Android the OS dialog has already closed itself; on iOS the inline
+              // spinner stays so the value can be nudged, and the list updates live.
+              setEditingTime(next)
+              if (Platform.OS === 'android') {
+                setAddingTime(false)
+                setEditingTime(null)
+              }
+            }}
+            onDismiss={() => {
+              setAddingTime(false)
+              setEditingTime(null)
+            }}
+          />
         ) : (
           <Button
             label={times.length === 0 ? 'Add a time' : 'Add another time'}

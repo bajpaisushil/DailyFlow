@@ -31,6 +31,7 @@ const config: ExpoConfig = {
     },
     "android": {
       "package": "app.dailyflow.personal",
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#0B0B12",
         "foregroundImage": "./assets/android-icon-foreground.png",

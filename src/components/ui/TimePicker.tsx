@@ -13,6 +13,11 @@ import { useSettings } from '@/stores/settings'
 interface Props {
   value: HHMM
   onChange: (time: HHMM) => void
+  /**
+   * Present when the picker is being used to ADD a time: it opens straight away and reports
+   * dismissal, so choosing a time is one action rather than pick-then-confirm.
+   */
+  onDismiss?: () => void
 }
 
 /**
@@ -35,13 +40,14 @@ const SHORTCUTS: Array<{ label: string; time: HHMM; icon: IconName }> = [
   { label: 'Night', time: '21:00', icon: 'moon' },
 ]
 
-export function TimePicker({ value, onChange }: Props) {
+export function TimePicker({ value, onChange, onDismiss }: Props) {
   const { colors: c, scheme } = useTheme()
   const use24h = useSettings((s) => s.settings.use24HourClock)
   const locale = useSettings((s) => s.settings.locale)
 
-  // Android's picker is a modal that must be summoned; iOS renders inline.
-  const [showAndroid, setShowAndroid] = useState(false)
+  // In add mode the OS dialog opens immediately: the picker's own OK is the confirmation, and
+  // asking for a second one is the tap this screen used to waste.
+  const [showAndroid, setShowAndroid] = useState(onDismiss != null)
 
   const asDate = useCallback((time: HHMM): Date => {
     const minutes = parseHHMM(time) ?? 9 * 60
@@ -53,10 +59,13 @@ export function TimePicker({ value, onChange }: Props) {
   const handleChange = useCallback(
     (event: DateTimePickerEvent, date?: Date) => {
       if (Platform.OS === 'android') setShowAndroid(false)
-      if (event.type === 'dismissed' || !date) return
+      if (event.type === 'dismissed' || !date) {
+        onDismiss?.()
+        return
+      }
       onChange(toHHMM(date.getHours() * 60 + date.getMinutes()))
     },
-    [onChange],
+    [onChange, onDismiss],
   )
 
   return (
@@ -99,6 +108,17 @@ export function TimePicker({ value, onChange }: Props) {
         />
       ) : null}
 
+      {onDismiss && Platform.OS === 'ios' ? (
+        <PressableScale
+          onPress={onDismiss}
+          accessibilityRole="button"
+          accessibilityLabel="Done"
+          style={[styles.iosDone, { backgroundColor: c.accent }]}
+        >
+          <Text variant="label" style={{ color: c.onAccent }}>Done</Text>
+        </PressableScale>
+      ) : null}
+
       {/* Round times, because most times are round ones and one tap beats spinning a wheel. */}
       <View style={styles.shortcuts}>
         {SHORTCUTS.map((shortcut) => {
@@ -139,6 +159,10 @@ const styles = StyleSheet.create({
   },
   inline: { borderRadius: radius.lg, overflow: 'hidden', paddingVertical: space.xs },
   iosPicker: { height: 180 },
+  iosDone: {
+    minHeight: 48, borderRadius: radius.pill,
+    alignItems: 'center', justifyContent: 'center',
+  },
   shortcuts: { flexDirection: 'row', gap: space.sm },
   shortcut: {
     flex: 1, minHeight: 62, borderRadius: radius.md,
