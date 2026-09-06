@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { View, StyleSheet } from 'react-native'
 import { Screen } from '@/components/ui/Screen'
 import { DetailHeader } from '@/components/ui/DetailHeader'
@@ -12,6 +12,7 @@ import {
   requestPermission, type PendingItem, type PermissionState,
 } from '@/lib/notify/scheduler'
 import { resyncAll } from '@/lib/engine/apply'
+import { nextNativeFirings } from '@/lib/notify/nativeFirings'
 import { useData } from '@/stores/data'
 import { Linking, Platform } from 'react-native'
 import { space, radius } from '@/theme/tokens'
@@ -46,6 +47,15 @@ export default function ScheduledScreen() {
   useEffect(() => {
     void load()
   }, [load])
+
+  /**
+   * Alarms and own-sound reminders live in AlarmManager, which cannot be enumerated, so they
+   * are recomputed from the same functions that scheduled them. Without this the screen built
+   * to prove reminders are set would say "nothing is waiting" for exactly the reminders people
+   * most want to check.
+   */
+  const native = useMemo(() => nextNativeFirings(reminders), [reminders])
+  const waiting = pending.length + native.length
 
   const enabledReminders = reminders.filter((r) => r.enabled).length
   const enabledAutomations = automations.filter((a) => a.enabled).length
@@ -184,7 +194,7 @@ export default function ScheduledScreen() {
         Waiting in the phone
       </Text>
 
-      {pending.length === 0 ? (
+      {waiting === 0 ? (
         <EmptyState
           icon="clock"
           title="Nothing waiting"
@@ -201,10 +211,39 @@ export default function ScheduledScreen() {
               </View>
             </View>
           ))}
+
+          {native.map((item) => (
+            <View key={item.id} style={styles.pending}>
+              <Icon name={item.kind === 'alarm' ? 'bell' : 'speak'} size={19} color={c.accent} />
+              <View style={{ flex: 1 }}>
+                <Text variant="body" numberOfLines={1}>{item.title}</Text>
+                <Text variant="caption" tone="muted">
+                  {item.kind === 'alarm' ? 'Alarm' : 'Your own sound'} · {describeMoment(item.at)}
+                </Text>
+              </View>
+            </View>
+          ))}
         </Card>
       )}
     </Screen>
   )
+}
+
+/** "Today at 06:00" rather than a timestamp — this screen is read by people, not machines. */
+function describeMoment(at: number): string {
+  const when = new Date(at)
+  const today = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const clock = `${pad(when.getHours())}:${pad(when.getMinutes())}`
+
+  const sameDay = when.toDateString() === today.toDateString()
+  if (sameDay) return `Today at ${clock}`
+
+  const tomorrow = new Date(today)
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  if (when.toDateString() === tomorrow.toDateString()) return `Tomorrow at ${clock}`
+
+  return `${when.toLocaleDateString(undefined, { weekday: 'long' })} at ${clock}`
 }
 
 function Count({ label, value, warn }: { label: string; value: number; warn?: boolean }) {

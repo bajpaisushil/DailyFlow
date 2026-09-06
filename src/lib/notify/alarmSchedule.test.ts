@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { alarmId, alarmOccurrences, ownSoundOccurrences, wantsOwnSound } from './alarmOccurrences.ts'
+import { nativeFirings, nextNativeFirings } from './nativeFirings.ts'
 import type { Reminder, Weekday } from '../types.ts'
 
 /**
@@ -168,5 +169,42 @@ describe('ownSoundOccurrences', () => {
     // reminder switched from alarm to notification would leave its old alarm ringing forever.
     const at = ownSoundOccurrences(own(), from, 1)[0]!
     assert.equal(alarmId('r1', at), `r1:${at}`)
+  })
+})
+
+/**
+ * What "What is set" can show.
+ *
+ * That screen exists so someone can check the PHONE really holds their reminders rather than
+ * take the app's word for it. It reads the OS notification list — which silently became the
+ * wrong question for alarms and for reminders playing their own sound, both of which go to
+ * AlarmManager. AlarmManager cannot be enumerated, so these are recomputed from the very same
+ * functions that scheduled them.
+ */
+describe('nativeFirings', () => {
+  it('lists an alarm and an own-sound reminder together, soonest first', () => {
+    const alarm = reminder({ id: 'a', times: ['07:00'], alertStyle: 'alarm' })
+    const sound = reminder({
+      id: 's', times: ['06:30'], alertStyle: 'notification', soundFile: 'x.mp3',
+    })
+    const out = nativeFirings([alarm, sound], from)
+    assert.equal(out[0]!.kind, 'sound')
+    assert.equal(out[1]!.kind, 'alarm')
+    assert.ok(out[0]!.at < out[1]!.at)
+  })
+
+  it('says nothing about reminders the OS is handling', () => {
+    // A plain reminder with a bundled tone IS in the notification list, and listing it here
+    // too would show the user the same reminder twice.
+    assert.deepEqual(nativeFirings([reminder({ alertStyle: 'notification' })], from), [])
+  })
+
+  it('carries the reminder title, which is the only thing the screen shows', () => {
+    const out = nativeFirings([reminder({ title: 'Take insulin' })], from)
+    assert.equal(out[0]!.title, 'Take insulin')
+  })
+
+  it('caps the list, because nobody reads forty rows', () => {
+    assert.equal(nextNativeFirings([reminder()], 5, from).length, 5)
   })
 })
