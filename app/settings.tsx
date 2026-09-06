@@ -182,11 +182,14 @@ export default function SettingsScreen() {
           help={`${settings.notifications.quietHours.from} — ${settings.notifications.quietHours.to}`}
           icon="moon"
           value={settings.notifications.quietHours.enabled}
-          onChange={(v) =>
+          onChange={(v) => {
             updateNotifications({
               quietHours: { ...settings.notifications.quietHours, enabled: v },
             })
-          }
+            // The vibrate toggle directly above resyncs; this one did not, so changing it
+            // had no effect until some unrelated edit happened to trigger a sync.
+            void resyncAll()
+          }}
         />
         <Toggle
           label="Stay quiet if the list is done"

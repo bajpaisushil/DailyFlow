@@ -1,6 +1,6 @@
 import { Platform } from 'react-native'
 import type { Automation, NotificationPriority } from '@/lib/types'
-import { isWithinWindow } from '@/lib/time'
+import { isWithinWindow, parseHHMM } from '@/lib/time'
 import { supportsScheduledNotifications } from '@/lib/runtime'
 import { channelIdForTone, soundNameForTone, TONES, type ToneId } from './tones'
 import { MAX_PENDING, planFor, type ScheduledPlan, type TriggerPlan } from './plan'
@@ -209,19 +209,16 @@ export interface SyncResult {
  * because the set is small and bounded.
  */
 /**
- * Would this firing land inside the user's "do not wake me" window?
+ * Does this firing fall inside the user's "do not wake me" window?
  *
- * Quiet hours were enforced only in governance.decide(), which is reached from the geofence
- * path alone — every clock reminder went straight to the OS, which knows nothing about the
- * setting. So the app said "DailyFlow stays quiet between these times" and then rang at 3am.
- * Anything that would fall inside the window is simply not scheduled.
+ * Exported so the reminder EDITOR can warn before saving. It is deliberately NOT used to
+ * filter the schedule any more — see the note in syncSchedules.
  */
-function fallsInQuietHours(
-  plan: ScheduledPlan,
-  quiet: { enabled: boolean; from: string; to: string; allowImportant: boolean },
+export function fallsInQuietHours(
+  plan: Pick<ScheduledPlan, 'when' | 'priority'>,
+  quiet: { enabled: boolean; from: string; to: string },
 ): boolean {
   if (!quiet.enabled) return false
-  if (plan.priority === 'important' && quiet.allowImportant) return false
 
   const minutes =
     plan.when.every === 'once'
@@ -232,6 +229,19 @@ function fallsInQuietHours(
       : plan.when.hour * 60 + plan.when.minute
 
   return isWithinWindow(minutes, quiet.from, quiet.to)
+}
+
+/** Whether a clock time the user is about to save lands inside their quiet hours. */
+export function timeIsInQuietHours(
+  time: string,
+  quiet: { enabled: boolean; from: string; to: string },
+): boolean {
+  const minutes = parseHHMM(time)
+  if (minutes == null) return false
+  return fallsInQuietHours(
+    { when: { every: 'day', hour: Math.floor(minutes / 60), minute: minutes % 60 }, priority: 'normal' },
+    quiet,
+  )
 }
 
 export async function syncSchedules(
@@ -267,11 +277,22 @@ export async function syncSchedules(
         ? plan.when.at
         : Date.now() + (plan.when.hour * 60 + plan.when.minute) * 1000
 
-    const audible = opts.quietHours
-      ? plans.filter((p) => !fallsInQuietHours(p, opts.quietHours!))
-      : plans
-
-    const ordered = [...audible].sort((a, b) => rank(a) - rank(b))
+    /**
+     * Quiet hours do NOT remove a reminder from the schedule.
+     *
+     * An earlier version filtered them out here, and it was worse than the problem it solved:
+     * quiet hours default to 22:00–07:00, so "leave for work at 06:45" and the time picker's
+     * own "Early 06:00" shortcut were saved, listed, badged green as reachable — and never
+     * scheduled at all. A reminder deliberately set for 06:45 is one the user WANTS at 06:45;
+     * silence is not what they asked for by enabling a do-not-disturb window.
+     *
+     * Quiet hours now do what they should: they suppress the app's own INCIDENTAL nudges —
+     * the geofence firings that governance.decide() gates — and the editor warns before
+     * saving a time that lands inside the window. What the user explicitly asked for is
+     * always scheduled, and their phone's own Do Not Disturb remains the final word on
+     * whether it makes a noise.
+     */
+    const ordered = [...plans].sort((a, b) => rank(a) - rank(b))
     const budgeted = ordered.slice(0, MAX_PENDING)
 
     for (const plan of budgeted) {

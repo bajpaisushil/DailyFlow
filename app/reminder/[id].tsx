@@ -22,7 +22,9 @@ import { speak, reminderSpeech } from '@/lib/notify/speak'
 import { useData } from '@/stores/data'
 import { newId } from '@/lib/id'
 import { applyReminder, removeReminder } from '@/lib/engine/applyReminder'
-import { notificationsAvailable, readPermission, requestPermission } from '@/lib/notify/scheduler'
+import {
+  notificationsAvailable, readPermission, requestPermission, timeIsInQuietHours,
+} from '@/lib/notify/scheduler'
 import type { AlertStyle, NotificationPriority, PlaceTrigger, Reminder, Weekday } from '@/lib/types'
 import { formatTime, WEEKDAYS_MON_FRI } from '@/lib/time'
 import { describeCourse, endDateAfterDays, occurrenceCount } from '@/lib/course'
@@ -61,6 +63,7 @@ export default function ReminderEditor() {
 
   const use24h = useSettings((s) => s.settings.use24HourClock)
   const locale = useSettings((s) => s.settings.locale)
+  const quietHours = useSettings((s) => s.settings.notifications.quietHours)
 
   const isNew = id === 'new'
   const existing = useMemo(() => reminders.find((r) => r.id === id), [reminders, id])
@@ -127,6 +130,12 @@ export default function ReminderEditor() {
         ? 'Add a time, or a place to be reminded at'
         : null
   const canSave = blockedReason == null
+
+  /**
+   * Times that land inside "do not wake me". Said here, where the user can act on it, rather
+   * than silently dropping the reminder — which is what a previous version did.
+   */
+  const quietTimes = times.filter((t) => timeIsInQuietHours(t, quietHours))
 
   const onDone = useCallback(async () => {
     if (!canSave || saving) return
@@ -285,6 +294,23 @@ export default function ReminderEditor() {
           />
         )}
       </View>
+
+      {quietTimes.length > 0 ? (
+        <Card tone="flat" style={{ marginBottom: space.lg, backgroundColor: c.warnSoft }}>
+          <View style={styles.quietRow}>
+            <Icon name="moon" size={19} color={c.warn} />
+            <Text variant="label" style={{ color: c.warn, flex: 1 }}>
+              {quietTimes.length === 1
+                ? `${formatTime(quietTimes[0]!, use24h, locale)} is inside your quiet hours`
+                : `${quietTimes.length} of these times are inside your quiet hours`}
+            </Text>
+          </View>
+          <Text variant="caption" tone="muted" style={{ marginTop: space.xs }}>
+            DailyFlow will still send it. Your phone&apos;s Do Not Disturb decides whether it
+            makes a sound.
+          </Text>
+        </Card>
+      ) : null}
 
       {/* Days only matter once there is a time */}
       {times.length > 0 ? (
@@ -697,6 +723,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: space.md, minHeight: 40, borderRadius: radius.pill,
   },
+  quietRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   styleRow: { flexDirection: 'row', gap: space.md, marginBottom: space.sm },
   styleCard: { alignItems: 'flex-start', gap: space.sm, minHeight: 140 },
 })
