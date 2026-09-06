@@ -8,7 +8,6 @@ import React, { useEffect } from 'react'
 import { Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
-import { ReducedMotionConfig, ReduceMotion } from 'react-native-reanimated'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { ThemeProvider, useTheme } from '@/theme/ThemeProvider'
 import { seedIfFirstRun } from '@/lib/data/seed'
@@ -59,9 +58,8 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        {/* Honour the OS reduce-motion setting globally, rather than per-animation.
-            It configures Reanimated rather than wrapping the tree, so it is a sibling. */}
-        <ReducedMotionConfig mode={ReduceMotion.System} />
+        {/* Reanimated already follows the OS reduce-motion setting by default, so there is
+            nothing to configure here — setting it explicitly only logs a warning. */}
         <ThemeProvider>
           <Shell />
         </ThemeProvider>
