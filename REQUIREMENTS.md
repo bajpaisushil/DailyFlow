@@ -236,3 +236,41 @@ handoff has no iOS equivalent.
 Decision: ship the Clock handoff now (a real ringing alarm, today, at no cost), then build the
 native Android module. iOS gets the strongest notification Apple allows, and the app says so
 rather than implying otherwise.
+
+
+---
+
+# Pre-release QA (session 3)
+
+Two adversarial audits ran against the code: a five-dimension QA sweep (crashes, data loss,
+silent failures, logic, UX) with every finding verified by a separate skeptic, and an iOS
+compatibility audit. **17 defects confirmed, 7 refuted.** All 17 fixed, plus one I introduced
+while fixing another.
+
+## The ones that would have reached customers
+
+| Defect | Consequence |
+|---|---|
+| Soft-delete tombstone written to the column, not the document | Every reminder, place and list the user ever deleted **came back to life** when they restored a backup |
+| "Open a saved copy" had no confirmation | One tap on a mild-sounding row **irreversibly destroyed everything**; a bad file left it half-wiped with no message |
+| Notification budget truncated in the wrong order | "3× a day for a month" **silently lost an entire dose per day** |
+| Lead time crossing midnight kept the original day | A 30-minute warning on a 00:10 Monday reminder was scheduled for **Monday 23:40** — nearly a day late |
+| Quiet hours never applied to clock reminders | The setting said "DailyFlow stays quiet" and it **rang at 3am** |
+| Firing ledger recorded delivery before attempting it | A failed delivery was marked delivered, so that reminder **could never fire again** |
+| Deleting a place orphaned its reminders | They stayed enabled, looked fine, and **could never fire** |
+| One geofence region per place | "When I arrive at the office" fired **4.5 km early** because another reminder wanted a warning |
+| Alarm style discarded on iOS, explanation Android-gated | iPhone users got the **weakest behaviour and the least warning** |
+
+## A regression I caused, and what it taught
+
+Fixing "quiet hours don't work", I made them filter firings out of the schedule. Quiet hours
+default to on, 22:00–07:00 — so **"leave for work at 06:45" and the time picker's own "Early
+06:00" shortcut were silently never scheduled**, while still showing a green "works even when
+closed" badge. I replaced a setting that lied with reminders that vanish: the same failure
+class, one level worse.
+
+The design was wrong, not just the code. A reminder deliberately set for 06:45 is one the user
+*wants* at 06:45. Quiet hours now suppress only the app's own incidental nudges, and the
+editor warns where the user can act on it.
+
+**Every fix has a test.** 264 passing.

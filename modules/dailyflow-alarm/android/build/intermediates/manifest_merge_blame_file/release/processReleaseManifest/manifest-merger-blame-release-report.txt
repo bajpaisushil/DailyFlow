@@ -1,0 +1,64 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="app.dailyflow.alarm" >
+4
+5    <uses-sdk android:minSdkVersion="24" />
+6
+7    <!--
+8       Shows the alarm over the lock screen. This is the whole point of the module: a
+9       notification cannot take over the screen, and a reminder you must not sleep through
+10       has to.
+11    -->
+12    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+12-->/Users/sushilbajpai/Desktop/Projects/dailyflow/modules/dailyflow-alarm/android/src/main/AndroidManifest.xml:6:3-79
+12-->/Users/sushilbajpai/Desktop/Projects/dailyflow/modules/dailyflow-alarm/android/src/main/AndroidManifest.xml:6:20-76
+13    <uses-permission android:name="android.permission.WAKE_LOCK" />
+13-->/Users/sushilbajpai/Desktop/Projects/dailyflow/modules/dailyflow-alarm/android/src/main/AndroidManifest.xml:7:3-66
+13-->/Users/sushilbajpai/Desktop/Projects/dailyflow/modules/dailyflow-alarm/android/src/main/AndroidManifest.xml:7:20-63
+14    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+14-->/Users/sushilbajpai/Desktop/Projects/dailyflow/modules/dailyflow-alarm/android/src/main/AndroidManifest.xml:8:3-75
+14-->/Users/sushilbajpai/Desktop/Projects/dailyflow/modules/dailyflow-alarm/android/src/main/AndroidManifest.xml:8:20-72
+15    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+15-->/Users/sushilbajpai/Desktop/Projects/dailyflow/modules/dailyflow-alarm/android/src/main/AndroidManifest.xml:9:3-90
+15-->/Users/sushilbajpai/Desktop/Projects/dailyflow/modules/dailyflow-alarm/android/src/main/AndroidManifest.xml:9:20-87
+16    <uses-permission android:name="android.permission.VIBRATE" />
+16-->/Users/sushilbajpai/Desktop/Projects/dailyflow/modules/dailyflow-alarm/android/src/main/AndroidManifest.xml:10:3-64
+16-->/Users/sushilbajpai/Desktop/Projects/dailyflow/modules/dailyflow-alarm/android/src/main/AndroidManifest.xml:10:20-61
+17
+18    <application>
+18-->/Users/sushilbajpai/Desktop/Projects/dailyflow/modules/dailyflow-alarm/android/src/main/AndroidManifest.xml:12:3-29:17
+19
+20        <!--
+21         singleTask so a second alarm reuses the same screen instead of stacking; excluded
+22         from recents so a dismissed alarm cannot be resurrected from the task switcher.
+23        -->
+24        <activity
+24-->/Users/sushilbajpai/Desktop/Projects/dailyflow/modules/dailyflow-alarm/android/src/main/AndroidManifest.xml:15:5-23:60
+25            android:name="app.dailyflow.alarm.AlarmActivity"
+25-->/Users/sushilbajpai/Desktop/Projects/dailyflow/modules/dailyflow-alarm/android/src/main/AndroidManifest.xml:16:7-55
+26            android:excludeFromRecents="true"
+26-->/Users/sushilbajpai/Desktop/Projects/dailyflow/modules/dailyflow-alarm/android/src/main/AndroidManifest.xml:19:7-40
+27            android:exported="false"
+27-->/Users/sushilbajpai/Desktop/Projects/dailyflow/modules/dailyflow-alarm/android/src/main/AndroidManifest.xml:17:7-31
+28            android:launchMode="singleTask"
+28-->/Users/sushilbajpai/Desktop/Projects/dailyflow/modules/dailyflow-alarm/android/src/main/AndroidManifest.xml:18:7-38
+29            android:screenOrientation="portrait"
+29-->/Users/sushilbajpai/Desktop/Projects/dailyflow/modules/dailyflow-alarm/android/src/main/AndroidManifest.xml:22:7-43
+30            android:showOnLockScreen="true"
+30-->/Users/sushilbajpai/Desktop/Projects/dailyflow/modules/dailyflow-alarm/android/src/main/AndroidManifest.xml:20:7-38
+31            android:theme="@style/Theme.AppCompat.NoActionBar"
+31-->/Users/sushilbajpai/Desktop/Projects/dailyflow/modules/dailyflow-alarm/android/src/main/AndroidManifest.xml:23:7-57
+32            android:turnScreenOn="true" />
+32-->/Users/sushilbajpai/Desktop/Projects/dailyflow/modules/dailyflow-alarm/android/src/main/AndroidManifest.xml:21:7-34
+33
+34        <service
+34-->/Users/sushilbajpai/Desktop/Projects/dailyflow/modules/dailyflow-alarm/android/src/main/AndroidManifest.xml:25:5-28:55
+35            android:name="app.dailyflow.alarm.AlarmService"
+35-->/Users/sushilbajpai/Desktop/Projects/dailyflow/modules/dailyflow-alarm/android/src/main/AndroidManifest.xml:26:7-54
+36            android:exported="false"
+36-->/Users/sushilbajpai/Desktop/Projects/dailyflow/modules/dailyflow-alarm/android/src/main/AndroidManifest.xml:27:7-31
+37            android:foregroundServiceType="mediaPlayback" />
+37-->/Users/sushilbajpai/Desktop/Projects/dailyflow/modules/dailyflow-alarm/android/src/main/AndroidManifest.xml:28:7-52
+38    </application>
+39
+40</manifest>
