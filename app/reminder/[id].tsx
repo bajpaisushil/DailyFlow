@@ -23,6 +23,7 @@ import { notificationsAvailable, readPermission, requestPermission } from '@/lib
 import type { AlertStyle, NotificationPriority, PlaceTrigger, Reminder, Weekday } from '@/lib/types'
 import { formatTime, WEEKDAYS_MON_FRI } from '@/lib/time'
 import { describeCourse, endDateAfterDays, occurrenceCount } from '@/lib/course'
+import { clockAlarmSupported, setClockAlarm } from '@/lib/notify/clockAlarm'
 import { describeApproach } from '@/lib/location/approach'
 import { useSettings } from '@/stores/settings'
 import { font, radius, space } from '@/theme/tokens'
@@ -507,6 +508,31 @@ export default function ReminderEditor() {
             )
           })}
         </View>
+
+        {/* Says what an alarm here actually is. Calling a loud notification an "alarm"
+            without qualification is the kind of small dishonesty that gets someone to their
+            stop late, so the difference is stated and the real thing is offered. */}
+        {(alertStyle === 'alarm' || alertStyle === 'both') && clockAlarmSupported() ? (
+          <Card tone="flat" style={{ marginBottom: space.sm }}>
+            <Text variant="caption" tone="muted">
+              DailyFlow&apos;s alarm is loud and vibrates, but it sounds once — it will not
+              ring until you turn it off. For something you must not sleep through, also set
+              it in your phone&apos;s Clock.
+            </Text>
+            <Button
+              label="Also set a Clock alarm"
+              icon="clock"
+              variant="secondary"
+              full
+              style={{ marginTop: space.md }}
+              disabled={times.length === 0}
+              onPress={() => {
+                const first = times[0]
+                if (first) void setClockAlarm({ time: first, label: title.trim() || 'DailyFlow' })
+              }}
+            />
+          </Card>
+        ) : null}
 
         <Toggle label="Make a sound" icon="speak" value={sound} onChange={setSound} />
         <Toggle label={S.settings.vibrate} icon="phone" value={vibrate} onChange={setVibrate} />

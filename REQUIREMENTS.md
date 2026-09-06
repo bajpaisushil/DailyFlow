@@ -202,3 +202,37 @@ Adding place search made DailyFlow issue its first network request. The app used
 "nothing is ever sent to the internet". That would have become a lie, so it now says exactly
 what is sent (the words you type), when (only while searching), and what is not (everything
 else) — on the search field itself, not buried in settings.
+
+
+---
+
+# Release readiness (session 3)
+
+| # | Requirement | Status |
+|---|-------------|--------|
+| 77 | **Must work fully on iOS too**, not only Android | auditing — see note below |
+| 78 | **Alarm must cover the screen and ring for a set duration** | Android: native module to build. **iOS: not permitted by Apple** |
+| 79 | **Thorough testing of everything before customers see it** | adversarial QA sweep running |
+| 80 | Tell the user only when tested and the APK is ready — **GTM ready** | pending |
+| 81 | **No API keys, no credit card** — free services only | done — OpenStreetMap for both search and map tiles; expo-maps removed |
+| 82 | A way to see whether reminders are **actually scheduled** | done — "What is set" reads the pending list back out of the OS |
+
+## The alarm, stated honestly
+
+What DailyFlow can schedule by itself is a notification. On Android it is a maximum-importance
+one on the alarm audio channel — loud, strong vibration — but it sounds once and waits. It does
+not ring until dismissed.
+
+A true full-screen ringing alarm needs a full-screen intent, a looping player and a foreground
+service. `expo-notifications` exposes none of those (verified: no `fullScreenIntent` anywhere in
+its type definitions), so it requires native Android code.
+
+**On iOS it is not a matter of effort — Apple does not permit it.** No third-party app can take
+over the screen and ring; only Apple's Clock can. The best available is a Time Sensitive
+notification, and `critical` interruption level needs an entitlement granted by Apple on
+application. There is also no public API to create an alarm in the iOS Clock app, so the Android
+handoff has no iOS equivalent.
+
+Decision: ship the Clock handoff now (a real ringing alarm, today, at no cost), then build the
+native Android module. iOS gets the strongest notification Apple allows, and the app says so
+rather than implying otherwise.

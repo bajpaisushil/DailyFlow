@@ -46,6 +46,7 @@ const config: ExpoConfig = {
         "USE_EXACT_ALARM",
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE",
+        "com.android.alarm.permission.SET_ALARM",
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_LOCATION"
       ]

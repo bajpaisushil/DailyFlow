@@ -252,6 +252,7 @@ export async function notifyNow(input: {
   title: string
   body?: string
   priority?: NotificationPriority
+  alertStyle?: 'notification' | 'alarm'
   inSeconds?: number
 }): Promise<void> {
   const N = load()
@@ -259,11 +260,19 @@ export async function notifyNow(input: {
   if ((await readPermission()) !== 'granted') return
 
   try {
+    // Android drops a notification to the default channel if the channel it names does not
+    // exist yet. Geofence firings arrive through here, often on a cold start where nothing
+    // has created the channels, so an alarm silently became an ordinary notification.
+    await ensureChannels(true)
+
     await N.scheduleNotificationAsync({
       content: {
         title: input.title,
         body: input.body,
         sound: (input.priority ?? 'normal') !== 'quiet',
+        ...(Platform.OS === 'android'
+          ? { channelId: input.alertStyle === 'alarm' ? CHANNEL_ALARM : CHANNEL_ID }
+          : {}),
       },
       trigger: input.inSeconds
         ? { type: N.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: input.inSeconds }
