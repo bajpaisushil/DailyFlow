@@ -95,4 +95,15 @@ if (mapsKey && config.android) {
   config.android.config = { googleMaps: { apiKey: mapsKey } }
 }
 
+/**
+ * A non-secret flag saying whether a Maps key went into this build.
+ *
+ * The key itself is deliberately stripped from the public manifest, which is what
+ * `Constants.expoConfig` reads at runtime — so the app cannot check for the key directly and
+ * would conclude there was none even when there is. It needs the answer because the Android
+ * Maps SDK does not degrade without a key: it takes the process down, and a native crash
+ * cannot be caught in JavaScript. A boolean discloses nothing.
+ */
+config.extra = { ...config.extra, hasMapsKey: !!mapsKey }
+
 export default config

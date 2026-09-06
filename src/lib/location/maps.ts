@@ -1,4 +1,5 @@
 import { Platform } from 'react-native'
+import Constants from 'expo-constants'
 import { isExpoGo } from '@/lib/runtime'
 
 /**
@@ -34,6 +35,22 @@ export function loadMaps(): MapsModule | null {
   return cached
 }
 
+/**
+ * Is there a Google Maps API key in this build?
+ *
+ * On Android the Maps SDK needs one, and without it the map view does not degrade — it takes
+ * the whole process down. That crash is native, so no React error boundary can catch it: the
+ * only safe response is to never mount the view unless we believe it will work.
+ *
+ * iOS uses Apple Maps and needs no key, so this only gates Android.
+ */
+export function mapsKeyConfigured(): boolean {
+  if (Platform.OS !== 'android') return true
+  // Reads a flag set at build time, NOT the key. The key is stripped from the public
+  // manifest that Constants reads — checking for it directly always says "absent".
+  return Constants.expoConfig?.extra?.hasMapsKey === true
+}
+
 export function mapsAvailable(): boolean {
-  return loadMaps() != null
+  return loadMaps() != null && mapsKeyConfigured()
 }

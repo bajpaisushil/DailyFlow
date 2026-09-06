@@ -14,7 +14,7 @@ import { useData } from '@/stores/data'
 import { newId } from '@/lib/db/repo'
 import { getCurrentFix, requestForeground, type Fix } from '@/lib/location/service'
 import { describe as describeCoords, type FoundPlace } from '@/lib/location/search'
-import { mapsAvailable } from '@/lib/location/maps'
+import { mapsAvailable, mapsKeyConfigured } from '@/lib/location/maps'
 import { MapPicker, type MapMarker } from '@/components/places/MapPicker'
 import { PlaceSearch } from '@/components/places/PlaceSearch'
 import { RADIUS_PRESETS, type Place, type RadiusPresetKey } from '@/lib/types'
@@ -172,16 +172,13 @@ export default function PlaceEditor() {
             standing in — the temple across town, the office before you start the job. */}
         <PlaceSearch
           selected={chosen}
-          onResults={(found) => {
-            setCandidates(found)
-            // Show the map as soon as there is something to compare, so a list of
-            // similar-sounding names can be told apart by where they actually are.
-            if (found.length > 0) setShowMap(true)
-          }}
+          onResults={(found) => setCandidates(found)}
           onChoose={(found) => {
             setChosen(found)
             void adoptCoords(found.lat, found.lon, true)
-            setShowMap(true)
+            // Deliberately does NOT open the map. Auto-mounting it here crashed the app on
+            // builds without a Google Maps key — and choosing a place is the one step that
+            // must always work, since nothing else can be done until it does.
           }}
         />
 
@@ -218,6 +215,10 @@ export default function PlaceEditor() {
             style={{ marginTop: space.sm }}
             onPress={() => setShowMap((v) => !v)}
           />
+        ) : fix && !mapsKeyConfigured() ? (
+          <Text variant="caption" tone="faint" center style={{ marginTop: space.md }}>
+            The map is not set up in this build. Everything else works.
+          </Text>
         ) : null}
       </Card>
 
