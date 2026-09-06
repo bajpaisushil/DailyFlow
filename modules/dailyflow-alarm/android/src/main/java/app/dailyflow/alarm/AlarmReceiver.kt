@@ -64,6 +64,7 @@ class AlarmReceiver : BroadcastReceiver() {
        * still pending REPLACED it — the first reminder was cancelled outright and never came
        * back. Deriving the code from the title and time keeps concurrent snoozes distinct.
        */
+      val at = System.currentTimeMillis() + minutes * 60_000L
       val code = snoozeCodeFor(title, at)
       rememberSnooze(context, code)
 
@@ -74,7 +75,6 @@ class AlarmReceiver : BroadcastReceiver() {
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
       )
 
-      val at = System.currentTimeMillis() + minutes * 60_000L
       return try {
         val exact = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
           manager.canScheduleExactAlarms()
