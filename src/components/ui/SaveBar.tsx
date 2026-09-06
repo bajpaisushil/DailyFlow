@@ -73,8 +73,14 @@ export function SaveBar({ label, onPress, blockedReason, busy }: Props) {
   )
 }
 
-/** Room a screen must leave at the bottom so the bar never covers its last control. */
-export const SAVE_BAR_CLEARANCE = 148
+/**
+ * Room a screen must leave at the bottom so the bar never covers its last control.
+ *
+ * Measured generously on purpose: the bar grows when it is showing why saving is blocked, and
+ * several editors end with a destructive "Remove" button. A bar that overlaps the very control
+ * a user is reaching for is worse than no bar at all.
+ */
+export const SAVE_BAR_CLEARANCE = 190
 
 const styles = StyleSheet.create({
   wrap: {

@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import Animated, { FadeIn } from 'react-native-reanimated'
 import { Screen } from '@/components/ui/Screen'
 import { DetailHeader } from '@/components/ui/DetailHeader'
+import { SaveBar, SAVE_BAR_CLEARANCE } from '@/components/ui/SaveBar'
 import { Card } from '@/components/ui/Card'
 import { Text } from '@/components/ui/Text'
 import { Icon } from '@/components/ui/Icon'
@@ -120,6 +121,9 @@ export default function PlaceEditor() {
     setLocating(false)
   }, [adoptCoords])
 
+  /** Says what is missing, rather than leaving a dead button to be puzzled over. */
+  const blockedReason = !name.trim() ? 'Give this place a name' : !fix ? 'Choose where this place is' : null
+
   const onDone = useCallback(() => {
     const trimmed = name.trim()
     if (!trimmed || !fix) return
@@ -144,12 +148,9 @@ export default function PlaceEditor() {
   }, [name, icon, fix, preset, addressLabelForSave, existing, savePlace, router])
 
   return (
-    <Screen>
-      <DetailHeader
-        title={isNew ? S.place.addOne : (existing?.name ?? S.nav.places)}
-        onDone={onDone}
-        disabled={!name.trim() || !fix}
-      />
+    <>
+    <Screen bottomInset={SAVE_BAR_CLEARANCE}>
+      <DetailHeader title={isNew ? S.place.addOne : (existing?.name ?? S.nav.places)} />
 
       {/* Where. Three ways in, because one size does not fit every situation:
           standing there (GPS, works offline), knowing the name (search), or
@@ -351,6 +352,13 @@ export default function PlaceEditor() {
         />
       ) : null}
     </Screen>
+
+    <SaveBar
+      label={isNew ? 'Add place' : 'Save place'}
+      blockedReason={blockedReason}
+      onPress={() => void onDone()}
+    />
+    </>
   )
 }
 

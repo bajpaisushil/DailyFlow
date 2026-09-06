@@ -3,6 +3,7 @@ import { View, StyleSheet, TextInput } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { Screen } from '@/components/ui/Screen'
 import { DetailHeader } from '@/components/ui/DetailHeader'
+import { SaveBar, SAVE_BAR_CLEARANCE } from '@/components/ui/SaveBar'
 import { Card } from '@/components/ui/Card'
 import { Text } from '@/components/ui/Text'
 import { Icon, IconBadge, type IconName } from '@/components/ui/Icon'
@@ -82,6 +83,9 @@ export default function PlanEditor() {
     )
   }, [])
 
+  /** Says what is missing, rather than leaving a dead button to be puzzled over. */
+  const blockedReason = !name.trim() ? 'Give this day plan a name' : null
+
   const onDone = useCallback(async () => {
     const trimmed = name.trim()
     if (!trimmed || saving) return
@@ -124,12 +128,9 @@ export default function PlanEditor() {
   ])
 
   return (
-    <Screen>
-      <DetailHeader
-        title={isNew ? S.plan.addOne : (existing?.name ?? S.nav.dayPlans)}
-        onDone={() => void onDone()}
-        disabled={!name.trim() || saving}
-      />
+    <>
+    <Screen bottomInset={SAVE_BAR_CLEARANCE}>
+      <DetailHeader title={isNew ? S.plan.addOne : (existing?.name ?? S.nav.dayPlans)} />
 
       {/* Name */}
       <Text variant="heading" style={styles.section}>What is it called?</Text>
@@ -304,6 +305,13 @@ export default function PlanEditor() {
         />
       ) : null}
     </Screen>
+
+    <SaveBar
+      label={isNew ? 'Add day plan' : 'Save day plan'}
+      blockedReason={blockedReason}
+      onPress={() => void onDone()}
+    />
+    </>
   )
 }
 

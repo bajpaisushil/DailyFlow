@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import Animated, { FadeIn, LinearTransition } from 'react-native-reanimated'
 import { Screen } from '@/components/ui/Screen'
 import { DetailHeader } from '@/components/ui/DetailHeader'
+import { SaveBar, SAVE_BAR_CLEARANCE } from '@/components/ui/SaveBar'
 import { Card } from '@/components/ui/Card'
 import { Text } from '@/components/ui/Text'
 import { Icon, IconBadge, type IconName } from '@/components/ui/Icon'
@@ -58,6 +59,9 @@ export default function ListEditor() {
     )
   }, [])
 
+  /** Says what is missing, rather than leaving a dead button to be puzzled over. */
+  const blockedReason = !name.trim() ? 'Give this list a name' : null
+
   const onDone = useCallback(() => {
     const trimmed = name.trim()
     if (!trimmed) return
@@ -77,12 +81,9 @@ export default function ListEditor() {
   }, [name, icon, items, existing, saveChecklist, router])
 
   return (
-    <Screen>
-      <DetailHeader
-        title={isNew ? S.list.addOne : (existing?.name ?? S.nav.lists)}
-        onDone={onDone}
-        disabled={!name.trim()}
-      />
+    <>
+    <Screen bottomInset={SAVE_BAR_CLEARANCE}>
+      <DetailHeader title={isNew ? S.list.addOne : (existing?.name ?? S.nav.lists)} />
 
       {/* Name */}
       <Text variant="heading" style={styles.section}>{S.place.nameIt}</Text>
@@ -186,6 +187,13 @@ export default function ListEditor() {
         />
       ) : null}
     </Screen>
+
+    <SaveBar
+      label={isNew ? 'Add list' : 'Save list'}
+      blockedReason={blockedReason}
+      onPress={() => void onDone()}
+    />
+    </>
   )
 }
 
