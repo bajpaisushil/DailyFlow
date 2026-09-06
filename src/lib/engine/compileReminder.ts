@@ -164,7 +164,8 @@ export function compileReminder(
           // A place trigger has no lead-time concept, so it uses the reminder's own style.
           alertStyle: reminder.alertStyle === 'notification' ? 'notification' : 'alarm',
           silent: !reminder.sound,
-          toneId: reminder.toneId,
+          toneId: reminder.soundFile ?? reminder.toneId,
+          alarmDurationSeconds: reminder.alarmDurationSeconds,
         },
       }],
       limits: { cooldownMinutes: 30, maxPerDay: 3 },

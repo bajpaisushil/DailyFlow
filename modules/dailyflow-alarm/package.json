@@ -1,0 +1,7 @@
+{
+  "name": "dailyflow-alarm",
+  "version": "1.0.0",
+  "description": "Full-screen ringing alarm for DailyFlow (Android only)",
+  "main": "index.ts",
+  "private": true
+}

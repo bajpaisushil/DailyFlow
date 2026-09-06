@@ -206,6 +206,8 @@ export interface ActionParamMap {
     silent?: boolean
     /** Which bundled tone to play. Decides the Android channel. */
     toneId?: string
+    /** How long a full-screen alarm rings before stopping itself. */
+    alarmDurationSeconds?: number
   }
   'checklist.show': { checklistId: Id }
   'checklist.reset': { checklistId: Id }

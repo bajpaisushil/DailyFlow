@@ -1,0 +1,6 @@
+{
+  "platforms": ["android"],
+  "android": {
+    "modules": ["app.dailyflow.alarm.DailyFlowAlarmModule"]
+  }
+}

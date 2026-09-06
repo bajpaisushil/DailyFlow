@@ -47,6 +47,9 @@ const config: ExpoConfig = {
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE",
         "com.android.alarm.permission.SET_ALARM",
+        "android.permission.USE_FULL_SCREEN_INTENT",
+        "android.permission.WAKE_LOCK",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_LOCATION"
       ]

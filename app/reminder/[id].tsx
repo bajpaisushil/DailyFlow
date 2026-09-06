@@ -29,6 +29,10 @@ import type { AlertStyle, NotificationPriority, PlaceTrigger, Reminder, Weekday 
 import { formatTime, WEEKDAYS_MON_FRI } from '@/lib/time'
 import { describeCourse, endDateAfterDays, occurrenceCount } from '@/lib/course'
 import { clockAlarmSupported, setClockAlarm } from '@/lib/notify/clockAlarm'
+import {
+  alarmModuleAvailable, canShowFullScreenAlarm, DEFAULT_ALARM_SECONDS,
+  openFullScreenAlarmSettings, ringAlarm, stopAlarm,
+} from '@/lib/notify/alarm'
 import { describeApproach } from '@/lib/location/approach'
 import { useSettings } from '@/stores/settings'
 import { font, radius, space } from '@/theme/tokens'
@@ -80,6 +84,9 @@ export default function ReminderEditor() {
   const [alertStyle, setAlertStyle] = useState<AlertStyle>(existing?.alertStyle ?? 'notification')
   const [endsOn, setEndsOn] = useState(existing?.endsOn)
   const [toneId, setToneId] = useState<ToneId>((existing?.toneId as ToneId) ?? 'chime')
+  const [alarmSeconds, setAlarmSeconds] = useState(
+    existing?.alarmDurationSeconds ?? DEFAULT_ALARM_SECONDS,
+  )
   const [soundFile, setSoundFile] = useState(existing?.soundFile)
   const [soundLabel, setSoundLabel] = useState(existing?.soundLabel)
   const [speakAloud, setSpeakAloud] = useState(existing?.speakAloud ?? false)
@@ -168,6 +175,7 @@ export default function ReminderEditor() {
       soundFile,
       soundLabel,
       speakAloud,
+      alarmDurationSeconds: alarmSeconds,
       sound,
       vibrate,
       createdAt: existing?.createdAt ?? now,
@@ -181,7 +189,7 @@ export default function ReminderEditor() {
   }, [
     canSave, saving, reach, existing, title, icon, times, days,
     placeTriggers, leads, checklistId, priority, alertStyle, toneId, soundFile, soundLabel,
-    speakAloud, sound, vibrate, endsOn, refresh, router,
+    speakAloud, alarmSeconds, sound, vibrate, endsOn, refresh, router,
   ])
 
   return (
@@ -558,12 +566,78 @@ export default function ReminderEditor() {
             labelled "An alarm — Loud, to wake you", was told nothing further, and received an
             ordinary banner. That is the weakest behaviour paired with the least warning,
             which is the opposite of what this app promises. */}
+        {/* How long it rings, and a real test. An alarm you have never heard is one you
+            discover is wrong at the moment you needed it. */}
+        {(alertStyle === 'alarm' || alertStyle === 'both') && alarmModuleAvailable() ? (
+          <Card tone="flat" style={{ marginBottom: space.sm }}>
+            <Text variant="label" style={{ marginBottom: space.sm }}>How long should it ring?</Text>
+            <View style={styles.chips}>
+              {[30, 60, 120, 300].map((seconds) => {
+                const active = alarmSeconds === seconds
+                return (
+                  <PressableScale
+                    key={seconds}
+                    onPress={() => setAlarmSeconds(seconds)}
+                    depth="sm"
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: active }}
+                    accessibilityLabel={describeRingLength(seconds)}
+                    style={[
+                      styles.chip,
+                      { backgroundColor: active ? c.accent : c.surfaceAlt },
+                    ]}
+                  >
+                    <Text variant="label" style={{ color: active ? c.onAccent : c.inkMuted }}>
+                      {describeRingLength(seconds)}
+                    </Text>
+                  </PressableScale>
+                )
+              })}
+            </View>
+
+            <Button
+              label="Try it now"
+              icon="play"
+              variant="secondary"
+              full
+              style={{ marginTop: space.sm }}
+              onPress={() => {
+                ringAlarm({
+                  title: title.trim() || 'DailyFlow alarm',
+                  body: 'This is how it will sound.',
+                  soundFile: soundFile ?? toneId,
+                  durationSeconds: Math.min(alarmSeconds, 20),
+                })
+              }}
+            />
+
+            {!canShowFullScreenAlarm() ? (
+              <>
+                <Text variant="caption" tone="warn" style={{ marginTop: space.md }}>
+                  Your phone will not let DailyFlow cover the screen, so the alarm will sound
+                  but stay a message.
+                </Text>
+                <Button
+                  label="Let it cover the screen"
+                  icon="settings"
+                  variant="quiet"
+                  full
+                  style={{ marginTop: space.xs }}
+                  onPress={openFullScreenAlarmSettings}
+                />
+              </>
+            ) : null}
+          </Card>
+        ) : null}
+
         {alertStyle === 'alarm' || alertStyle === 'both' ? (
           <Card tone="flat" style={{ marginBottom: space.sm }}>
             <Text variant="caption" tone="muted">
-              {clockAlarmSupported()
-                ? 'DailyFlow’s alarm is loud and vibrates, but it sounds once — it will not ring until you turn it off. For something you must not sleep through, also set it in your phone’s Clock.'
-                : 'DailyFlow’s alarm shows even through Focus and Do Not Disturb, but it sounds once — it will not ring until you turn it off. Only Apple’s Clock app can do that, so for something you must not sleep through, set an alarm there too.'}
+              {alarmModuleAvailable()
+                ? 'DailyFlow will cover the screen and keep ringing until you stop it.'
+                : clockAlarmSupported()
+                  ? 'DailyFlow’s alarm is loud and vibrates, but it sounds once — it will not ring until you turn it off. For something you must not sleep through, also set it in your phone’s Clock.'
+                  : 'DailyFlow’s alarm shows even through Focus and Do Not Disturb, but it sounds once — it will not ring until you turn it off. Only Apple’s Clock app can do that, so for something you must not sleep through, set an alarm there too.'}
             </Text>
             {clockAlarmSupported() ? (
               <>
@@ -657,6 +731,13 @@ export default function ReminderEditor() {
     />
     </>
   )
+}
+
+/** Ring length in words. Never a bare number of seconds. */
+function describeRingLength(seconds: number): string {
+  if (seconds < 60) return `${seconds} seconds`
+  const minutes = seconds / 60
+  return minutes === 1 ? '1 minute' : `${minutes} minutes`
 }
 
 function PlaceToggle({

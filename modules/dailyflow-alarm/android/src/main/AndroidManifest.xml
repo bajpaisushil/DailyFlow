@@ -1,0 +1,30 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <!-- Shows the alarm over the lock screen. This is the whole point of the module: a
+       notification cannot take over the screen, and a reminder you must not sleep through
+       has to. -->
+  <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+  <uses-permission android:name="android.permission.WAKE_LOCK" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+  <uses-permission android:name="android.permission.VIBRATE" />
+
+  <application>
+    <!-- singleTask so a second alarm reuses the same screen instead of stacking; excluded
+         from recents so a dismissed alarm cannot be resurrected from the task switcher. -->
+    <activity
+      android:name="app.dailyflow.alarm.AlarmActivity"
+      android:exported="false"
+      android:launchMode="singleTask"
+      android:excludeFromRecents="true"
+      android:showOnLockScreen="true"
+      android:turnScreenOn="true"
+      android:screenOrientation="portrait"
+      android:theme="@style/Theme.AppCompat.NoActionBar" />
+
+    <service
+      android:name="app.dailyflow.alarm.AlarmService"
+      android:exported="false"
+      android:foregroundServiceType="mediaPlayback" />
+  </application>
+</manifest>

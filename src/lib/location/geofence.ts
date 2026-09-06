@@ -5,6 +5,7 @@ import * as repo from '@/lib/db/repo'
 import { supportsBackgroundGeofencing } from '@/lib/runtime'
 import { decide, record } from '@/lib/engine/governance'
 import { notifyNow } from '@/lib/notify/scheduler'
+import { alarmModuleAvailable, ringAlarm } from '@/lib/notify/alarm'
 import { localDateKey } from '@/lib/time'
 import { approachRadiusMetres } from './approach'
 import { parseRegionId, radiiForPlace, radiusForTrigger, regionId } from './regions'
@@ -126,6 +127,26 @@ async function handleRegionEvent(identifier: string, entering: boolean): Promise
     if (!decision.allow) {
       record(automation, occurrenceKey, decision, notify.params.title)
       continue
+    }
+
+    /**
+     * A place-triggered ALARM rings for real rather than arriving as a notification.
+     *
+     * This is the case the whole feature exists for — "wake me six minutes before my stop" —
+     * and a banner does not wake anyone. When the module is unavailable (Expo Go, iOS) it
+     * falls through to the notification, which is the loudest thing available there.
+     */
+    if (notify.params.alertStyle === 'alarm' && alarmModuleAvailable()) {
+      const rang = ringAlarm({
+        title: notify.params.title,
+        body: notify.params.body,
+        soundFile: notify.params.toneId,
+        durationSeconds: notify.params.alarmDurationSeconds,
+      })
+      if (rang) {
+        record(automation, occurrenceKey, decision, notify.params.title)
+        continue
+      }
     }
 
     const delivered = await notifyNow({

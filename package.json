@@ -58,5 +58,10 @@
     "apk": "./scripts/build-apk.sh",
     "apk:status": "./scripts/apk-status.sh"
   },
-  "private": true
+  "private": true,
+  "expo": {
+    "autolinking": {
+      "nativeModulesDir": "./modules"
+    }
+  }
 }
