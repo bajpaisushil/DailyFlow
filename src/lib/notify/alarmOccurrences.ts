@@ -1,5 +1,6 @@
 import type { Reminder } from '@/lib/types'
 import { courseOccurrences } from '@/lib/course'
+import { isDated, nextDates } from '@/lib/repeat'
 import { parseHHMM, startOfLocalDay } from '@/lib/time'
 
 /**
@@ -16,6 +17,14 @@ export const HORIZON_DAYS = 14
 
 /** A cap, so a badly configured course cannot fill the OS alarm table. */
 export const MAX_ALARMS = 40
+
+/**
+ * How many occurrences of a dated repeat to arm at once.
+ *
+ * Four is four years for a birthday and four months for rent. Alarms are re-laid on every app
+ * start, so arming more buys nothing and only consumes the OS alarm table.
+ */
+const DATED_LOOK_AHEAD = 4
 
 export function alarmId(reminderId: string, at: number): string {
   return `${reminderId}:${at}`
@@ -75,6 +84,19 @@ function timedOccurrences(
 ): number[] {
   if (!reminder.enabled) return []
   if (reminder.times.length === 0) return []
+
+  /**
+   * A dated repeat — monthly, yearly, or a one-off — fires on computed dates rather than on
+   * weekdays. Without this an alarm set for Diwali or an interview would simply never ring:
+   * the weekday walk below has a two-week horizon and no notion of a date months away.
+   */
+  if (isDated(reminder.repeat) && reminder.onDate) {
+    const dates = nextDates(reminder.repeat!, reminder.onDate, from, DATED_LOOK_AHEAD)
+    if (dates.length === 0) return []
+    return courseOccurrences({ ...reminder, dates }, from)
+      .map((o) => o.at)
+      .slice(0, MAX_ALARMS)
+  }
 
   // A bounded course already knows its own dates; reuse that rather than duplicate the logic.
   if (reminder.endsOn) {

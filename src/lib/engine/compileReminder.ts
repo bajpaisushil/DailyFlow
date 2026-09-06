@@ -1,4 +1,5 @@
-import type { Automation, Checklist, Reminder, Weekday } from '@/lib/types'
+import type { Automation, Checklist, LocalDate, Reminder, Weekday } from '@/lib/types'
+import { isDated, nextDates } from '@/lib/repeat'
 import { newId } from '@/lib/id'
 import { parseHHMM, toHHMM } from '@/lib/time'
 
@@ -53,6 +54,8 @@ export function compileReminder(
 
   const bySlot = new Map(existing.map((a) => [a.sourceSlot, a]))
   const now = Date.now()
+  // A Date as well as a stamp: dated repeats need to know which occurrences are still ahead.
+  const today = new Date(now)
   const out: Automation[] = []
   const listLine = checklistLine(reminder, checklists)
 
@@ -114,9 +117,7 @@ export function compileReminder(
         match: 'all',
         // A bounded reminder carries its window through, so the scheduler can lay out dated
         // occurrences that expire rather than a rule that repeats forever.
-        window: reminder.endsOn
-          ? { from: reminder.startsOn, until: reminder.endsOn }
-          : undefined,
+        window: windowFor(reminder, today),
         actions: [{
           kind: 'notify',
           params: {
@@ -150,9 +151,7 @@ export function compileReminder(
       match: 'all',
       // A course that ends must end completely. Without this the clock reminders stopped on
       // schedule while "remind me when I get home" kept firing forever.
-      window: reminder.endsOn
-        ? { from: reminder.startsOn, until: reminder.endsOn }
-        : undefined,
+      window: windowFor(reminder, today),
       actions: [{
         kind: 'notify',
         params: {
@@ -186,4 +185,31 @@ export function scheduleCost(reminder: Reminder): number {
   const leads = new Set(reminder.leadMinutes.length ? reminder.leadMinutes : [0]).size
   const perTime = reminder.days.length === 0 || reminder.days.length === 7 ? 1 : reminder.days.length
   return reminder.times.length * leads * perTime
+}
+
+/**
+ * The dates a reminder should be laid out on, if it is not a plain weekly one.
+ *
+ * A monthly or yearly reminder cannot be a repeating clock rule: the OS understands "every
+ * day" and "every weekday", and nothing longer. So the next few occurrences are computed here
+ * and scheduled as individual dated firings, refreshed on every app start — which is also what
+ * makes them survive a year of not being touched.
+ *
+ * `LOOK_AHEAD` is small on purpose. Four occurrences is four years for a birthday and four
+ * months for rent; the schedule is rebuilt every time the app opens, so a bigger number buys
+ * nothing but pending-notification budget.
+ */
+const LOOK_AHEAD = 4
+
+function windowFor(
+  reminder: Reminder,
+  now: Date,
+): { from?: LocalDate; until: LocalDate; dates?: LocalDate[] } | undefined {
+  if (isDated(reminder.repeat) && reminder.onDate) {
+    const dates = nextDates(reminder.repeat!, reminder.onDate, now, LOOK_AHEAD)
+    if (dates.length === 0) return undefined
+    return { dates, until: dates[dates.length - 1]! }
+  }
+
+  return reminder.endsOn ? { from: reminder.startsOn, until: reminder.endsOn } : undefined
 }

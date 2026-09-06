@@ -21,13 +21,23 @@ export function isCourse(reminder: Pick<Reminder, 'endsOn'>): boolean {
   return !!reminder.endsOn
 }
 
-type CourseShape = Pick<Reminder, 'times' | 'days' | 'startsOn' | 'endsOn' | 'leadMinutes'>
+type CourseShape = Pick<Reminder, 'times' | 'days' | 'startsOn' | 'endsOn' | 'leadMinutes'> & {
+  /**
+   * Fire on exactly these dates rather than on every day in the range.
+   *
+   * Monthly and yearly reminders cannot be a range walk — the gap between occurrences is far
+   * longer than any horizon worth walking day by day, and the weekday filter would be wrong
+   * for them anyway.
+   */
+  dates?: LocalDate[]
+}
 
 /**
  * Every firing a bounded reminder implies, in order.
  * `from` is injected so this is deterministic and testable.
  */
 export function courseOccurrences(reminder: CourseShape, from: Date, maxDays = 120): Occurrence[] {
+  if (reminder.dates?.length) return datedOccurrences(reminder, from)
   if (!reminder.endsOn) return []
 
   const start = reminder.startsOn ? new Date(`${reminder.startsOn}T00:00:00`) : startOfLocalDay(from)
@@ -61,6 +71,37 @@ export function courseOccurrences(reminder: CourseShape, from: Date, maxDays = 1
 
     cursor = addDays(cursor, 1)
     guard += 1
+  }
+
+  return out.sort((a, b) => a.at - b.at)
+}
+
+/**
+ * Firings on an explicit set of dates.
+ *
+ * Weekdays are deliberately NOT applied: the date is the instruction. A yearly reminder for a
+ * festival that happens to fall on a Sunday, against a reminder still carrying Mon-Fri from an
+ * earlier edit, would otherwise fire never.
+ */
+function datedOccurrences(reminder: CourseShape, from: Date): Occurrence[] {
+  const leads = [...new Set(reminder.leadMinutes.length ? reminder.leadMinutes : [0])]
+  const out: Occurrence[] = []
+
+  for (const date of reminder.dates ?? []) {
+    const day = new Date(`${date}T00:00:00`)
+    if (Number.isNaN(day.getTime())) continue
+
+    for (const time of reminder.times) {
+      const minutes = parseHHMM(time)
+      if (minutes == null) continue
+      for (const lead of leads) {
+        const at = new Date(day)
+        at.setHours(0, minutes - lead, 0, 0)
+        // Skip the past: scheduling a past moment fires immediately.
+        if (at.getTime() <= from.getTime()) continue
+        out.push({ at: at.getTime(), date: localDateKey(at), time })
+      }
+    }
   }
 
   return out.sort((a, b) => a.at - b.at)

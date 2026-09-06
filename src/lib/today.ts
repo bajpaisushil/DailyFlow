@@ -2,6 +2,7 @@ import type {
   ActivityEvent, Checklist, ChecklistRun, HHMM, Place, Reminder, Routine, Weekday,
 } from '@/lib/types'
 import { checklistPeriodKey } from '@/lib/checklistPeriod'
+import { isDated, nextDates } from '@/lib/repeat'
 import { alreadyThere, currentPlace, type Presence } from '@/lib/presence'
 import { localDateKey, minutesOfDay, parseHHMM, weekdayOf } from '@/lib/time'
 
@@ -186,8 +187,24 @@ export function buildToday(input: {
     return true
   }
 
+  /**
+   * Whether a reminder belongs on TODAY's list.
+   *
+   * A dated repeat is decided by its date, never by weekdays. Without this a yearly reminder
+   * carries no weekday restriction and no end date, so it would satisfy the weekly test every
+   * single day — Diwali sitting on the Today screen all year, which destroys the one thing
+   * this screen is for.
+   */
+  const happensToday = (r: Reminder): boolean => {
+    if (isDated(r.repeat)) {
+      if (!r.onDate) return false
+      return nextDates(r.repeat!, r.onDate, now, 1)[0] === periodKey
+    }
+    return r.days.length === 0 || r.days.includes(today)
+  }
+
   const fromReminders: TodayEntry[] = reminders
-    .filter((r) => r.enabled && withinCourse(r) && (r.days.length === 0 || r.days.includes(today)))
+    .filter((r) => r.enabled && withinCourse(r) && happensToday(r))
     .flatMap((r) =>
       r.times.flatMap((time) => {
         const startsAtMinutes = parseHHMM(time)
@@ -230,7 +247,7 @@ export function buildToday(input: {
   const attachedIds = new Set([
     ...entries.flatMap((e) => e.routine?.checklistIds ?? []),
     ...reminders
-      .filter((r) => r.enabled && r.checklistId && withinCourse(r) && isRelevantToday(r, today))
+      .filter((r) => r.enabled && r.checklistId && withinCourse(r) && happensToday(r))
       .map((r) => r.checklistId!),
   ])
   const relevant = checklists.filter((c) => attachedIds.has(c.id))

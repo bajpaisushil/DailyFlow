@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { PressableScale } from '@/components/ui/PressableScale'
 import { space, radius } from '@/theme/tokens'
 import { useColors } from '@/theme/ThemeProvider'
-import type { LocalDate } from '@/lib/types'
+import type { LocalDate, RepeatKind } from '@/lib/types'
 
 /**
  * "Remind me on one particular day" — Diwali, an interview, a birthday.
@@ -120,3 +120,32 @@ const styles = StyleSheet.create({
   },
   clear: { width: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
 })
+
+/** How a dated repeat reads back: "Every year on Sunday, 8 November". */
+export function describeDated(
+  kind: RepeatKind | undefined,
+  date: LocalDate,
+  locale?: string,
+): string {
+  const day = describeDate(date, locale)
+  switch (kind) {
+    case 'yearly':
+      return `Every year on ${day}.`
+    case 'monthly':
+      return `Every month on the ${ordinal(fromLocalDate(date).getDate())}.`
+    default:
+      return `Once, on ${day}. It will not repeat.`
+  }
+}
+
+/** "31st", not "31th" — a small thing that makes a screen look written rather than generated. */
+function ordinal(n: number): string {
+  const tens = n % 100
+  if (tens >= 11 && tens <= 13) return `${n}th`
+  switch (n % 10) {
+    case 1: return `${n}st`
+    case 2: return `${n}nd`
+    case 3: return `${n}rd`
+    default: return `${n}th`
+  }
+}

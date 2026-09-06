@@ -27,11 +27,14 @@ import {
   notificationsAvailable, readPermission, requestPermission, timeIsInQuietHours,
 } from '@/lib/notify/scheduler'
 import type {
-  AlertStyle, LocalDate, NotificationPriority, PlaceTrigger, Reminder, Weekday,
+  AlertStyle, LocalDate, NotificationPriority, PlaceTrigger, Reminder, RepeatKind, Weekday,
 } from '@/lib/types'
 import { formatTime, WEEKDAYS_MON_FRI } from '@/lib/time'
 import { describeCourse, endDateAfterDays, occurrenceCount } from '@/lib/course'
-import { OnDatePicker, describeDate, toLocalDate } from '@/components/reminders/OnDatePicker'
+import {
+  OnDatePicker, describeDated, toLocalDate,
+} from '@/components/reminders/OnDatePicker'
+import { isDated } from '@/lib/repeat'
 import { clockAlarmSupported, setClockAlarm } from '@/lib/notify/clockAlarm'
 import {
   alarmModuleAvailable, canShowFullScreenAlarm, DEFAULT_ALARM_SECONDS,
@@ -105,9 +108,12 @@ export default function ReminderEditor() {
    * reminder that starts and ends on the same day IS a one-off, and keeping a second flag in
    * sync with that fact is how the two come to disagree.
    */
-  const [onDate, setOnDate] = useState<LocalDate | undefined>(
-    existing?.startsOn && existing.startsOn === existing.endsOn ? existing.startsOn : undefined,
-  )
+  const [onDate, setOnDate] = useState<LocalDate | undefined>(existing?.onDate)
+  /**
+   * How often this comes back. Absent means weekly, so every reminder saved before this
+   * existed keeps behaving exactly as it did.
+   */
+  const [repeat, setRepeat] = useState<RepeatKind>(existing?.repeat ?? 'weekly')
   const [toneId, setToneId] = useState<ToneId>((existing?.toneId as ToneId) ?? 'chime')
   const [alarmSeconds, setAlarmSeconds] = useState(
     existing?.alarmDurationSeconds ?? DEFAULT_ALARM_SECONDS,
@@ -194,6 +200,8 @@ export default function ReminderEditor() {
       days,
       endsOn,
       startsOn,
+      repeat,
+      onDate,
       placeTriggers,
       leadMinutes: leads,
       checklistId,
@@ -217,7 +225,7 @@ export default function ReminderEditor() {
   }, [
     canSave, saving, reach, existing, title, icon, times, days,
     placeTriggers, leads, checklistId, priority, alertStyle, toneId, soundFile, soundLabel,
-    speakAloud, alarmSeconds, sound, vibrate, endsOn, startsOn, onDate, refresh, router,
+    speakAloud, alarmSeconds, sound, vibrate, endsOn, startsOn, repeat, onDate, refresh, router,
   ])
 
   return (
@@ -346,68 +354,46 @@ export default function ReminderEditor() {
         </Card>
       ) : null}
 
-      {/* Days only matter once there is a time */}
+      {/* Repeating only matters once there is a time */}
       {times.length > 0 ? (
         <>
-          <Text variant="heading" style={styles.section}>On which days?</Text>
-          <View style={{ marginBottom: space.xl }}>
-            <DayPicker value={days} onChange={setDays} />
-          </View>
+          {/*
+            "How often?" comes FIRST, and is answered by the KIND of thing this is.
 
-          <Text variant="heading" style={styles.section}>For how long?</Text>
+            It used to ask "for how long?", which quietly conflated two different questions —
+            how often does this happen, and when should it stop — and offered only durations.
+            There was no way to say "this happens once, on a date" or "this comes back every
+            year", which is what an interview and Diwali actually are.
+          */}
+          <Text variant="heading" style={styles.section}>How often?</Text>
           <View style={styles.chips}>
-            {/*
-              "Just one day" is its own mode, not a duration.
-              Everything else here repeats, which covers habits — but the reminders that matter
-              most are often the ones that happen ONCE, on a date you must not get wrong: a
-              festival, an interview, a birthday. There was no way to say that at all.
-            */}
-            <PressableScale
-              onPress={() => {
-                if (onDate) {
-                  setOnDate(undefined)
-                  setStartsOn(undefined)
-                  setEndsOn(undefined)
-                } else {
-                  const today = toLocalDate(new Date())
-                  setOnDate(today)
-                  setStartsOn(today)
-                  setEndsOn(today)
-                }
-              }}
-              depth="sm"
-              accessibilityRole="radio"
-              accessibilityState={{ selected: !!onDate }}
-              accessibilityLabel="Just one day"
-              style={[styles.chip, { backgroundColor: onDate ? c.accent : c.surfaceAlt }]}
-            >
-              <Text variant="label" style={{ color: onDate ? c.onAccent : c.inkMuted }}>
-                Just one day
-              </Text>
-            </PressableScale>
-
             {([
-              { label: 'Keep going', days: 0 },
-              { label: '3 days', days: 3 },
-              { label: '1 week', days: 7 },
-              { label: '2 weeks', days: 14 },
-              { label: '1 month', days: 30 },
+              { kind: 'weekly', label: 'Every week', help: 'A habit, on the days you pick' },
+              { kind: 'monthly', label: 'Every month', help: 'Rent, a bill, a subscription' },
+              { kind: 'yearly', label: 'Every year', help: 'Diwali, a birthday' },
+              { kind: 'once', label: 'Just once', help: 'An interview, an appointment' },
             ] as const).map((option) => {
-              const value = option.days === 0 ? undefined : endDateAfterDays(new Date(), option.days)
-              const active = onDate ? false : option.days === 0 ? !endsOn : endsOn === value
+              const active = repeat === option.kind
               return (
                 <PressableScale
-                  key={option.label}
+                  key={option.kind}
                   onPress={() => {
-                    // Choosing a duration leaves single-day mode; the two are alternatives.
-                    setOnDate(undefined)
-                    setStartsOn(undefined)
-                    setEndsOn(value)
+                    setRepeat(option.kind)
+                    if (option.kind === 'weekly') {
+                      setOnDate(undefined)
+                      setStartsOn(undefined)
+                    } else {
+                      // Default to today so the picker opens somewhere sensible, and clear the
+                      // duration — "every year until next Tuesday" is not a thing.
+                      setOnDate((current) => current ?? toLocalDate(new Date()))
+                      setEndsOn(undefined)
+                      setStartsOn(undefined)
+                    }
                   }}
                   depth="sm"
                   accessibilityRole="radio"
                   accessibilityState={{ selected: active }}
-                  accessibilityLabel={option.label}
+                  accessibilityLabel={`${option.label}. ${option.help}`}
                   style={[styles.chip, { backgroundColor: active ? c.accent : c.surfaceAlt }]}
                 >
                   <Text variant="label" style={{ color: active ? c.onAccent : c.inkMuted }}>
@@ -417,37 +403,72 @@ export default function ReminderEditor() {
               )
             })}
           </View>
-          {onDate ? (
+
+          {isDated(repeat) ? (
             <View style={{ marginBottom: space.xl }}>
               <OnDatePicker
                 value={onDate}
                 locale={locale}
                 onChange={(next) => {
                   setOnDate(next)
-                  setStartsOn(next)
-                  setEndsOn(next)
+                  // A one-off is also a course of exactly one day, which is what makes it
+                  // expire by itself rather than depending on us to switch it off later.
+                  setStartsOn(repeat === 'once' ? next : undefined)
+                  setEndsOn(repeat === 'once' ? next : undefined)
                 }}
               />
               <Text variant="caption" tone="muted" style={{ marginTop: space.sm }}>
-                {onDate
-                  ? `Once, on ${describeDate(onDate, locale)}. It will not repeat.`
-                  : 'Pick the day you want to be reminded.'}
+                {onDate ? describeDated(repeat, onDate, locale) : 'Pick the day.'}
               </Text>
             </View>
-          ) : endsOn ? (
-            <Text variant="caption" tone="muted" style={{ marginBottom: space.xl }}>
-              {describeCourse({ times, endsOn })}
-              {'. '}
-              {occurrenceCount({ times, days, endsOn, leadMinutes: leads }, new Date())} reminders in total.
-            </Text>
           ) : (
-            <View style={{ marginBottom: space.xl }} />
-          )}
+            <>
+              <Text variant="heading" style={styles.section}>On which days?</Text>
+              <View style={{ marginBottom: space.xl }}>
+                <DayPicker value={days} onChange={setDays} />
+              </View>
 
-          <Text variant="heading" style={styles.section}>How early should I tell you?</Text>
-          <View style={{ marginBottom: space.xl }}>
-            <LeadTimePicker value={leads} onChange={setLeads} />
-          </View>
+              <Text variant="heading" style={styles.section}>Until when?</Text>
+              <View style={styles.chips}>
+                {([
+                  { label: 'Keep going', days: 0 },
+                  { label: '3 days', days: 3 },
+                  { label: '1 week', days: 7 },
+                  { label: '2 weeks', days: 14 },
+                  { label: '1 month', days: 30 },
+                ] as const).map((option) => {
+                  const value =
+                    option.days === 0 ? undefined : endDateAfterDays(new Date(), option.days)
+                  const active = option.days === 0 ? !endsOn : endsOn === value
+                  return (
+                    <PressableScale
+                      key={option.label}
+                      onPress={() => setEndsOn(value)}
+                      depth="sm"
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: active }}
+                      accessibilityLabel={option.label}
+                      style={[styles.chip, { backgroundColor: active ? c.accent : c.surfaceAlt }]}
+                    >
+                      <Text variant="label" style={{ color: active ? c.onAccent : c.inkMuted }}>
+                        {option.label}
+                      </Text>
+                    </PressableScale>
+                  )
+                })}
+              </View>
+              {endsOn ? (
+                <Text variant="caption" tone="muted" style={{ marginBottom: space.xl }}>
+                  {describeCourse({ times, endsOn })}
+                  {'. '}
+                  {occurrenceCount({ times, days, endsOn, leadMinutes: leads }, new Date())}
+                  {' reminders in total.'}
+                </Text>
+              ) : (
+                <View style={{ marginBottom: space.xl }} />
+              )}
+            </>
+          )}
         </>
       ) : null}
 
