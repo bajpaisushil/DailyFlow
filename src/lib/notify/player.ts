@@ -14,6 +14,31 @@ import { soundUri } from './customSound'
 let current: AudioPlayer | null = null
 let configured = false
 
+/**
+ * Who is currently making a noise, and who wants to know.
+ *
+ * The picker needs this to show a Stop button instead of a dead Play one. Without it the
+ * control was a single static icon that could start a sound and never stop it — the only way
+ * out was to leave the screen.
+ */
+let playingId: string | null = null
+const listeners = new Set<(id: string | null) => void>()
+
+function setPlaying(id: string | null): void {
+  playingId = id
+  for (const listener of listeners) listener(id)
+}
+
+/** Subscribe to what is playing. Returns an unsubscribe function. */
+export function onPlaybackChange(listener: (id: string | null) => void): () => void {
+  listeners.add(listener)
+  return () => void listeners.delete(listener)
+}
+
+export function nowPlaying(): string | null {
+  return playingId
+}
+
 async function configureOnce(): Promise<void> {
   if (configured) return
   try {
@@ -59,6 +84,12 @@ export async function previewTone(toneId: string): Promise<boolean> {
   const asset = BUNDLED[toneId]
   if (!asset) return false
 
+  // Tapping the tone that is already playing stops it, rather than restarting it.
+  if (playingId === toneId) {
+    await stopSound()
+    return false
+  }
+
   await configureOnce()
   await stopSound()
 
@@ -66,17 +97,52 @@ export async function previewTone(toneId: string): Promise<boolean> {
     const player = createAudioPlayer(asset)
     player.play()
     current = player
+    setPlaying(toneId)
+    watchForEnd(player, toneId)
     return true
   } catch {
     current = null
+    setPlaying(null)
     return false
   }
+}
+
+/**
+ * Clear the playing state when a sound finishes on its own.
+ *
+ * Without this the button stayed on "Stop" forever after a one-second chime ended, so the
+ * next tap tried to stop something that had already finished and nothing happened.
+ */
+function watchForEnd(player: AudioPlayer, id: string): void {
+  const timer = setInterval(() => {
+    try {
+      if (current !== player) {
+        clearInterval(timer)
+        return
+      }
+      if (!player.playing) {
+        clearInterval(timer)
+        if (playingId === id) {
+          current = null
+          setPlaying(null)
+        }
+      }
+    } catch {
+      clearInterval(timer)
+    }
+  }, 400)
 }
 
 /** Play a stored sound by file name. Returns false when there is nothing to play. */
 export async function playSound(fileName: string | undefined, options: PlayOptions = {}): Promise<boolean> {
   const uri = soundUri(fileName)
   if (!uri) return false
+
+  // Tapping the sound that is already playing stops it.
+  if (playingId === fileName) {
+    await stopSound()
+    return false
+  }
 
   await configureOnce()
   await stopSound()
@@ -86,6 +152,8 @@ export async function playSound(fileName: string | undefined, options: PlayOptio
     player.loop = options.loop ?? false
     player.play()
     current = player
+    setPlaying(fileName ?? null)
+    if (!options.loop) watchForEnd(player, fileName ?? '')
 
     if (options.stopAfterSeconds && options.stopAfterSeconds > 0) {
       // A looping alarm that nobody stops must still stop by itself, or it runs the battery
@@ -95,6 +163,7 @@ export async function playSound(fileName: string | undefined, options: PlayOptio
     return true
   } catch {
     current = null
+    setPlaying(null)
     return false
   }
 }
@@ -102,6 +171,7 @@ export async function playSound(fileName: string | undefined, options: PlayOptio
 export async function stopSound(): Promise<void> {
   const player = current
   current = null
+  setPlaying(null)
   if (!player) return
   try {
     player.pause()

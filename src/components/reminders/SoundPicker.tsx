@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { View, StyleSheet } from 'react-native'
 import { Card } from '@/components/ui/Card'
 import { Text } from '@/components/ui/Text'
@@ -7,7 +7,7 @@ import { PressableScale } from '@/components/ui/PressableScale'
 import { Button } from '@/components/ui/Button'
 import { TONES, type ToneId } from '@/lib/notify/tones'
 import { pickSound, deleteSound } from '@/lib/notify/customSound'
-import { playSound, previewTone, stopSound } from '@/lib/notify/player'
+import { nowPlaying, onPlaybackChange, playSound, previewTone, stopSound } from '@/lib/notify/player'
 import { radius, space } from '@/theme/tokens'
 import { useColors } from '@/theme/ThemeProvider'
 
@@ -40,6 +40,19 @@ export function SoundPicker({
   const c = useColors()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  /**
+   * What is sounding right now, so the button can be a real toggle.
+   *
+   * It used to be a fixed Play icon that only ever started playback: once a sound was going
+   * there was no way to stop it except leaving the screen. Subscribing means the icon also
+   * returns to Play by itself when a short tone finishes.
+   */
+  const [playing, setPlaying] = useState<string | null>(nowPlaying())
+  useEffect(() => onPlaybackChange(setPlaying), [])
+
+  // Never leave a sound running after the user navigates away.
+  useEffect(() => () => void stopSound(), [])
 
   const choose = async () => {
     setBusy(true)
@@ -93,8 +106,11 @@ export function SoundPicker({
                 <Text variant="body" style={{ color: active ? c.accent : c.ink }}>
                   {tone.label}
                 </Text>
-                <Text variant="caption" tone="muted">{tone.description}</Text>
+                <Text variant="caption" tone="muted">
+                  {playing === tone.id ? 'Playing — tap to stop' : tone.description}
+                </Text>
               </View>
+              {playing === tone.id ? <Icon name="close" size={19} color={c.bad} /> : null}
             </PressableScale>
           )
         })}
@@ -112,10 +128,14 @@ export function SoundPicker({
             <PressableScale
               onPress={() => void playSound(soundFile)}
               accessibilityRole="button"
-              accessibilityLabel="Listen"
+              accessibilityLabel={playing === soundFile ? 'Stop' : 'Listen'}
               style={styles.iconBtn}
             >
-              <Icon name="play" size={19} color={c.accent} />
+              <Icon
+                name={playing === soundFile ? 'close' : 'play'}
+                size={20}
+                color={playing === soundFile ? c.bad : c.accent}
+              />
             </PressableScale>
             <PressableScale
               onPress={() => {
