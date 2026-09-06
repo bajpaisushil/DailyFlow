@@ -104,6 +104,10 @@ async function handleRegionEvent(placeId: string, entering: boolean): Promise<vo
         title: notify.params.title,
         body: notify.params.body,
         priority: notify.params.priority,
+        // Was dropped here, so "wake me before my stop" — the one case the alarm channel
+        // exists for — arrived as an ordinary notification at normal importance.
+        alertStyle: notify.params.alertStyle,
+        toneId: notify.params.toneId,
       })
     }
   }

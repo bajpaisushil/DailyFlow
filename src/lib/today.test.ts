@@ -248,3 +248,38 @@ describe('describeWait', () => {
     assert.equal(describeWait(150), 'in 2 hours 30 min')
   })
 })
+
+describe('courses on Today — regression from the pre-release audit', () => {
+  const course = (over: Partial<Reminder> = {}): Reminder => ({
+    id: 'course', title: 'Take antibiotics', icon: 'pills', enabled: true,
+    times: ['09:00'], days: [] as Weekday[], placeTriggers: [], leadMinutes: [0],
+    priority: 'normal', alertStyle: 'notification', sound: true, vibrate: true,
+    createdAt: 0, updatedAt: 0, ...over,
+  })
+
+  const on = (r: Reminder) =>
+    buildToday({ now: now(7), routines: [], reminders: [r], places: [], checklists: [], runs: [] })
+
+  it('hides a course that has already finished', () => {
+    // It had correctly stopped firing, so leaving it on the home screen as "next" made the
+    // screen contradict the notifications.
+    assert.equal(on(course({ endsOn: '2026-08-01' })).entries.length, 0)
+  })
+
+  it('hides a course that has not started yet', () => {
+    assert.equal(on(course({ startsOn: '2026-12-01', endsOn: '2026-12-07' })).entries.length, 0)
+  })
+
+  it('shows a course that is running today', () => {
+    assert.equal(on(course({ startsOn: '2026-09-01', endsOn: '2026-09-30' })).entries.length, 1)
+  })
+
+  it('shows the last day of a course, not one day short', () => {
+    // 2026-09-07 is "today" in these tests; a course ending today must still appear.
+    assert.equal(on(course({ endsOn: '2026-09-07' })).entries.length, 1)
+  })
+
+  it('leaves an open-ended reminder alone', () => {
+    assert.equal(on(course()).entries.length, 1)
+  })
+})

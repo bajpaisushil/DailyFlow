@@ -68,6 +68,7 @@ export async function resyncAll(): Promise<Omit<ApplyResult, 'automations'>> {
   const enabled = repo.automations.all().filter((a) => a.enabled)
   const { scheduled, skipped } = await syncSchedules(enabled, {
     vibrate: settings.notifications.vibrate,
+    quietHours: settings.notifications.quietHours,
   })
 
   return { scheduled, skipped, notificationsAllowed: true }

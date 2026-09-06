@@ -137,3 +137,66 @@ describe('scheduleCost', () => {
     assert.equal(scheduleCost(reminder({ days: [0, 1, 2, 3, 4, 5, 6], leadMinutes: [0] })), 1)
   })
 })
+
+describe('regressions found in the pre-release audit', () => {
+  it('shifts the day back when a lead time crosses midnight', () => {
+    // "00:10 on Monday, 30 minutes before" fires at 23:40 — which is SUNDAY. Keeping Monday
+    // meant the warning was scheduled for Monday 23:40: no warning before the real reminder,
+    // and an unexplained one almost a day late.
+    const out = compileReminder(
+      reminder({ times: ['00:10'], days: [1], leadMinutes: [30] }),
+      [],
+    )
+    const trigger = out[0]!.trigger as { params: { time: string } }
+    assert.equal(trigger.params.time, '23:40')
+
+    const day = out[0]!.conditions.find((c) => c.kind === 'day.isOneOf')
+    assert.deepEqual((day as { params: { days: number[] } }).params.days, [0], 'must be Sunday')
+  })
+
+  it('wraps Sunday back to Saturday, not to minus one', () => {
+    const out = compileReminder(
+      reminder({ times: ['00:05', '09:00'], days: [0], leadMinutes: [10] }),
+      [],
+    )
+    const early = out.find(
+      (a) => (a.trigger as { params: { time: string } }).params.time === '23:55',
+    )!
+    const day = early.conditions.find((c) => c.kind === 'day.isOneOf')
+    assert.deepEqual((day as { params: { days: number[] } }).params.days, [6], 'must be Saturday')
+  })
+
+  it('leaves the day alone when the lead time does not cross midnight', () => {
+    const out = compileReminder(
+      reminder({ times: ['09:00'], days: [1, 3], leadMinutes: [30] }),
+      [],
+    )
+    const day = out[0]!.conditions.find((c) => c.kind === 'day.isOneOf')
+    assert.deepEqual((day as { params: { days: number[] } }).params.days, [1, 3])
+  })
+
+  it('expires a course\'s PLACE reminders too, not only its clock ones', () => {
+    // "Antibiotics 3x a day for a week, and remind me when I get home" used to stop the clock
+    // reminders on time while the place one fired forever.
+    const out = compileReminder(
+      reminder({
+        endsOn: '2026-09-13',
+        placeTriggers: [{ id: 'p', placeId: 'home', on: 'arrive' }],
+      }),
+      [],
+    )
+    const place = out.find((a) => a.trigger.kind === 'place.enter')!
+    assert.equal(place.window?.until, '2026-09-13')
+  })
+
+  it('carries the reminder\'s own sound and tone into the notification', () => {
+    // Both were saved on the Reminder and read by nothing, so the editor's toggles did nothing.
+    const out = compileReminder(
+      reminder({ sound: false, toneId: 'bell' }),
+      [],
+    )
+    const params = (out[0]!.actions[0] as { params: { silent?: boolean; toneId?: string } }).params
+    assert.equal(params.silent, true)
+    assert.equal(params.toneId, 'bell')
+  })
+})

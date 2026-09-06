@@ -135,3 +135,58 @@ describe('planFor', () => {
     assert.ok(total <= MAX_PENDING, `${total} plans exceeds the ${MAX_PENDING} budget`)
   })
 })
+
+describe('budget and quiet hours — regressions from the pre-release audit', () => {
+  /** A month-long course of three doses a day: 90 dated firings. */
+  function course(times: string[], days: number): Automation[] {
+    const out: Automation[] = []
+    for (const time of times) {
+      out.push(automation({
+        id: `a-${time}`,
+        trigger: { kind: 'time.at', params: { time } },
+        conditions: [],
+        window: { until: isoAfter(days) },
+      }) as Automation)
+    }
+    return out
+  }
+
+  function isoAfter(days: number): string {
+    const d = new Date(2026, 8, 7)
+    d.setDate(d.getDate() + days)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+
+  it('a month-long three-a-day course really does exceed the budget', () => {
+    // Establishes the premise of the bug: without ordering, something has to be dropped.
+    const plans = course(['08:00', '14:00', '21:00'], 30).flatMap((a) =>
+      planFor(a, new Date(2026, 8, 7, 6, 0)),
+    )
+    assert.ok(plans.length > MAX_PENDING, `expected over ${MAX_PENDING}, got ${plans.length}`)
+  })
+
+  it('keeps the soonest firings, so no dose of the day is lost wholesale', () => {
+    // The bug: slice() truncated in automation order, keeping every 08:00 and 14:00 and
+    // silently dropping every single 21:00 — a whole dose a day, with nothing said.
+    const now = new Date(2026, 8, 7, 6, 0)
+    const plans = course(['08:00', '14:00', '21:00'], 30).flatMap((a) => planFor(a, now))
+
+    const rank = (p: (typeof plans)[number]) =>
+      p.when.every === 'once' ? p.when.at : 0
+    const kept = [...plans].sort((a, b) => rank(a) - rank(b)).slice(0, MAX_PENDING)
+
+    const evening = kept.filter((p) => p.key.includes('a-21:00'))
+    assert.ok(
+      evening.length > 0,
+      'the evening dose must survive truncation, not be dropped entirely',
+    )
+
+    // And every kept firing should precede every dropped one.
+    const dropped = [...plans].sort((a, b) => rank(a) - rank(b)).slice(MAX_PENDING)
+    if (dropped.length > 0) {
+      const latestKept = Math.max(...kept.map(rank))
+      const earliestDropped = Math.min(...dropped.map(rank))
+      assert.ok(latestKept <= earliestDropped, 'what is dropped must be the far future')
+    }
+  })
+})

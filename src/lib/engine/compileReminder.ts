@@ -1,4 +1,4 @@
-import type { Automation, Checklist, Reminder } from '@/lib/types'
+import type { Automation, Checklist, Reminder, Weekday } from '@/lib/types'
 import { newId } from '@/lib/id'
 import { parseHHMM, toHHMM } from '@/lib/time'
 
@@ -70,10 +70,21 @@ export function compileReminder(
     } as Automation)
   }
 
-  const dayCondition =
-    reminder.days.length > 0 && reminder.days.length < 7
-      ? [{ kind: 'day.isOneOf' as const, params: { days: reminder.days } }]
-      : []
+  const restrictsDays = reminder.days.length > 0 && reminder.days.length < 7
+  const dayCondition = restrictsDays
+    ? [{ kind: 'day.isOneOf' as const, params: { days: reminder.days } }]
+    : []
+
+  /**
+   * Days for a firing that landed on the PREVIOUS calendar day.
+   *
+   * "Remind me at 00:10 on Monday, 30 minutes before" fires at 23:40 — which is SUNDAY. Left
+   * with Monday's day condition it was scheduled for Monday 23:40, so the user got no warning
+   * before the Monday reminder and an unexplained one nearly a day late. Every day has to
+   * shift back one when the lead time crosses midnight.
+   */
+  const shiftedDays = (days: Weekday[]): Weekday[] =>
+    days.map((d) => (((d - 1) % 7) + 7) % 7 as Weekday).sort((a, b) => a - b)
 
   // One automation per time × lead-time. Lead times are deduplicated and sorted so the
   // earliest warning is created first and the set is stable across edits.
@@ -84,11 +95,22 @@ export function compileReminder(
     if (base == null) continue
 
     for (const lead of leads) {
-      const fireAt = toHHMM(base - lead)
+      const raw = base - lead
+      const crossedMidnight = raw < 0
+      const fireAt = toHHMM(raw)
+
+      // A warning that lands before midnight belongs to the day BEFORE the reminder's day.
+      const conditionsForFiring = restrictsDays
+        ? [{
+            kind: 'day.isOneOf' as const,
+            params: { days: crossedMidnight ? shiftedDays(reminder.days) : reminder.days },
+          }]
+        : []
+
       make(`t:${time}:${lead}`, {
         name: reminder.title,
         trigger: { kind: 'time.at', params: { time: fireAt } },
-        conditions: dayCondition,
+        conditions: conditionsForFiring,
         match: 'all',
         // A bounded reminder carries its window through, so the scheduler can lay out dated
         // occurrences that expire rather than a rule that repeats forever.
@@ -104,6 +126,10 @@ export function compileReminder(
             includeChecklistId: reminder.checklistId,
             vibrate: reminder.vibrate,
             alertStyle: styleForFiring(reminder, lead),
+            // Both were saved on the Reminder and read by nothing, so the toggles in the
+            // editor did exactly nothing.
+            silent: !reminder.sound,
+            toneId: reminder.toneId,
           },
         }],
         limits: { maxPerDay: 1 },
@@ -122,6 +148,11 @@ export function compileReminder(
       },
       conditions: dayCondition,
       match: 'all',
+      // A course that ends must end completely. Without this the clock reminders stopped on
+      // schedule while "remind me when I get home" kept firing forever.
+      window: reminder.endsOn
+        ? { from: reminder.startsOn, until: reminder.endsOn }
+        : undefined,
       actions: [{
         kind: 'notify',
         params: {
@@ -132,6 +163,8 @@ export function compileReminder(
           vibrate: reminder.vibrate,
           // A place trigger has no lead-time concept, so it uses the reminder's own style.
           alertStyle: reminder.alertStyle === 'notification' ? 'notification' : 'alarm',
+          silent: !reminder.sound,
+          toneId: reminder.toneId,
         },
       }],
       limits: { cooldownMinutes: 30, maxPerDay: 3 },

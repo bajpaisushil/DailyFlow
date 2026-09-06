@@ -1,6 +1,8 @@
 import { Platform } from 'react-native'
 import type { Automation, NotificationPriority } from '@/lib/types'
+import { isWithinWindow } from '@/lib/time'
 import { supportsScheduledNotifications } from '@/lib/runtime'
+import { channelIdForTone, soundNameForTone, TONES, type ToneId } from './tones'
 import { MAX_PENDING, planFor, type ScheduledPlan, type TriggerPlan } from './plan'
 
 export { MAX_PENDING, planFor } from './plan'
@@ -127,27 +129,45 @@ export async function ensureChannels(vibrate: boolean): Promise<void> {
     })
 
     /**
-     * The alarm channel, for reminders where sleeping through it defeats the purpose —
-     * waking before your stop, or medicine that cannot be missed.
+     * One channel per tone, and a second per tone for alarms.
      *
-     * MAX importance so it appears over whatever is on screen, a long insistent vibration,
-     * and `bypassDnd` so it still sounds when the phone is set to allow alarms only. Android
-     * fixes a channel's importance at creation time and the user owns it afterwards, which is
-     * correct: if they turn this one down, we must not turn it back up.
+     * This is how a sound PER REMINDER is possible at all. Android fixes a channel's sound
+     * when the channel is created and never lets it change, so the only way to give two
+     * reminders different sounds is to give them different channels. Creating a channel that
+     * already exists is a no-op, so this is safe to run on every sync.
+     *
+     * Alarm channels get MAX importance, a long insistent vibration, and bypassDnd so they
+     * still sound when the phone is set to allow alarms only. The user owns a channel once it
+     * exists — if they turn one down, we must not turn it back up, and Android correctly
+     * will not let us.
      */
-    await N.setNotificationChannelAsync(CHANNEL_ALARM, {
-      name: 'Alarms',
-      importance: N.AndroidImportance.MAX,
-      vibrationPattern: [0, 600, 300, 600, 300, 600],
-      enableVibrate: true,
-      bypassDnd: true,
-      lockscreenVisibility: N.AndroidNotificationVisibility.PUBLIC,
-      audioAttributes: {
-        usage: N.AndroidAudioUsage.ALARM,
-        contentType: N.AndroidAudioContentType.SONIFICATION,
-        flags: { enforceAudibility: true, requestHardwareAudioVideoSynchronization: false },
-      },
-    })
+    for (const tone of TONES) {
+      const sound = soundNameForTone(tone.id)
+
+      await N.setNotificationChannelAsync(channelIdForTone(tone.id, false), {
+        name: `Reminders — ${tone.label}`,
+        importance: N.AndroidImportance.HIGH,
+        sound,
+        vibrationPattern: vibrate ? [0, 220, 120, 220] : undefined,
+        enableVibrate: vibrate,
+        lockscreenVisibility: N.AndroidNotificationVisibility.PRIVATE,
+      })
+
+      await N.setNotificationChannelAsync(channelIdForTone(tone.id, true), {
+        name: `Alarms — ${tone.label}`,
+        importance: N.AndroidImportance.MAX,
+        sound,
+        vibrationPattern: [0, 600, 300, 600, 300, 600],
+        enableVibrate: true,
+        bypassDnd: true,
+        lockscreenVisibility: N.AndroidNotificationVisibility.PUBLIC,
+        audioAttributes: {
+          usage: N.AndroidAudioUsage.ALARM,
+          contentType: N.AndroidAudioContentType.SONIFICATION,
+          flags: { enforceAudibility: true, requestHardwareAudioVideoSynchronization: false },
+        },
+      })
+    }
   } catch {
     // A channel that cannot be created simply means the default is used.
   }
@@ -188,9 +208,35 @@ export interface SyncResult {
  * mutate an existing schedule, and identifiers do not survive a reinstall. It is cheap
  * because the set is small and bounded.
  */
+/**
+ * Would this firing land inside the user's "do not wake me" window?
+ *
+ * Quiet hours were enforced only in governance.decide(), which is reached from the geofence
+ * path alone — every clock reminder went straight to the OS, which knows nothing about the
+ * setting. So the app said "DailyFlow stays quiet between these times" and then rang at 3am.
+ * Anything that would fall inside the window is simply not scheduled.
+ */
+function fallsInQuietHours(
+  plan: ScheduledPlan,
+  quiet: { enabled: boolean; from: string; to: string; allowImportant: boolean },
+): boolean {
+  if (!quiet.enabled) return false
+  if (plan.priority === 'important' && quiet.allowImportant) return false
+
+  const minutes =
+    plan.when.every === 'once'
+      ? (() => {
+          const d = new Date(plan.when.at)
+          return d.getHours() * 60 + d.getMinutes()
+        })()
+      : plan.when.hour * 60 + plan.when.minute
+
+  return isWithinWindow(minutes, quiet.from, quiet.to)
+}
+
 export async function syncSchedules(
   automations: Automation[],
-  opts: { vibrate: boolean },
+  opts: { vibrate: boolean; quietHours?: { enabled: boolean; from: string; to: string; allowImportant: boolean } },
 ): Promise<SyncResult> {
   const N = load()
   if (!N) return { scheduled: 0, skipped: 0, available: false }
@@ -204,14 +250,37 @@ export async function syncSchedules(
     await N.cancelAllScheduledNotificationsAsync()
 
     const plans = automations.flatMap((a) => planFor(a))
-    const budgeted = plans.slice(0, MAX_PENDING)
+
+    /**
+     * Keep the SOONEST firings, not the first ones the loop happened to produce.
+     *
+     * `slice(0, MAX_PENDING)` truncated in automation order, so a month-long course of three
+     * doses a day kept every 08:00 and 14:00 and silently dropped every 21:00 — the user lost
+     * an entire dose per day and nothing said so. Ordering by when each will actually fire
+     * means what gets dropped is the far future, which the next sync will pick up anyway.
+     *
+     * Repeating triggers have no single next time, so they are ranked by time of day and kept
+     * ahead of dated ones: a daily reminder must never be evicted by a course.
+     */
+    const rank = (plan: ScheduledPlan): number =>
+      plan.when.every === 'once'
+        ? plan.when.at
+        : Date.now() + (plan.when.hour * 60 + plan.when.minute) * 1000
+
+    const audible = opts.quietHours
+      ? plans.filter((p) => !fallsInQuietHours(p, opts.quietHours!))
+      : plans
+
+    const ordered = [...audible].sort((a, b) => rank(a) - rank(b))
+    const budgeted = ordered.slice(0, MAX_PENDING)
 
     for (const plan of budgeted) {
       await N.scheduleNotificationAsync({
         content: {
           title: plan.title,
           body: plan.body,
-          sound: plan.priority !== 'quiet',
+          // Honours the reminder's own "Make a sound" toggle, which was previously ignored.
+          sound: !plan.silent && plan.priority !== 'quiet',
           priority:
             plan.priority === 'important'
               ? N.AndroidNotificationPriority.MAX
@@ -222,12 +291,12 @@ export async function syncSchedules(
           // stream, so it sounds when the phone is set to allow alarms only.
           ...(Platform.OS === 'android'
             ? {
-                channelId:
-                  plan.alertStyle === 'alarm'
-                    ? CHANNEL_ALARM
-                    : plan.priority === 'quiet'
-                      ? CHANNEL_QUIET
-                      : CHANNEL_ID,
+                // One channel per tone: a channel's sound cannot be changed after creation,
+                // so a sound per reminder is achieved by having a channel per sound.
+                channelId: channelIdForTone(
+                  (plan.toneId as ToneId | undefined) ?? 'chime',
+                  plan.alertStyle === 'alarm',
+                ),
               }
             : {}),
           // Carried through so a tap can open the right screen and the engine can log it.
@@ -237,7 +306,11 @@ export async function syncSchedules(
       })
     }
 
-    return { scheduled: budgeted.length, skipped: plans.length - budgeted.length, available: true }
+    return {
+      scheduled: budgeted.length,
+      skipped: plans.length - budgeted.length,
+      available: true,
+    }
   } catch (error) {
     // We have already cancelled everything by this point, so a swallowed failure leaves the
     // user with NO reminders and no indication why. Surface it.
@@ -253,6 +326,7 @@ export async function notifyNow(input: {
   body?: string
   priority?: NotificationPriority
   alertStyle?: 'notification' | 'alarm'
+  toneId?: string
   inSeconds?: number
 }): Promise<void> {
   const N = load()
@@ -271,7 +345,12 @@ export async function notifyNow(input: {
         body: input.body,
         sound: (input.priority ?? 'normal') !== 'quiet',
         ...(Platform.OS === 'android'
-          ? { channelId: input.alertStyle === 'alarm' ? CHANNEL_ALARM : CHANNEL_ID }
+          ? {
+              channelId: channelIdForTone(
+                (input.toneId as ToneId | undefined) ?? 'chime',
+                input.alertStyle === 'alarm',
+              ),
+            }
           : {}),
       },
       trigger: input.inSeconds

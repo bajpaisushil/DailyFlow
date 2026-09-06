@@ -30,6 +30,8 @@ export interface ScheduledPlan {
   priority: NotificationPriority
   /** 'alarm' routes to the loud channel that can wake someone. */
   alertStyle?: 'notification' | 'alarm'
+  silent?: boolean
+  toneId?: string
   when: TriggerPlan
 }
 
@@ -71,6 +73,8 @@ export function planFor(automation: Automation, now = new Date()): ScheduledPlan
     body: notify.params.body,
     priority: notify.params.priority,
     alertStyle: notify.params.alertStyle,
+    silent: notify.params.silent,
+    toneId: notify.params.toneId,
   }
 
   /**

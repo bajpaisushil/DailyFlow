@@ -202,6 +202,10 @@ export interface ActionParamMap {
      * about which of the two a given notification should be.
      */
     alertStyle?: 'notification' | 'alarm'
+    /** The user turned sound off for this reminder. */
+    silent?: boolean
+    /** Which bundled tone to play. Decides the Android channel. */
+    toneId?: string
   }
   'checklist.show': { checklistId: Id }
   'checklist.reset': { checklistId: Id }

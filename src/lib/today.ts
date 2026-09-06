@@ -142,8 +142,21 @@ export function buildToday(input: {
    * day's shape. A reminder with no times is purely location-driven and cannot be placed on a
    * timeline at all, so it is left off.
    */
+  /**
+   * Is a bounded reminder running today?
+   *
+   * Without this a course of antibiotics finished a month ago still appeared on the home
+   * screen as the next thing happening — the reminder had correctly stopped firing, so the
+   * screen was contradicting the notifications.
+   */
+  const withinCourse = (r: Reminder): boolean => {
+    if (r.startsOn && periodKey < r.startsOn) return false
+    if (r.endsOn && periodKey > r.endsOn) return false
+    return true
+  }
+
   const fromReminders: TodayEntry[] = reminders
-    .filter((r) => r.enabled && (r.days.length === 0 || r.days.includes(today)))
+    .filter((r) => r.enabled && withinCourse(r) && (r.days.length === 0 || r.days.includes(today)))
     .flatMap((r) =>
       r.times.flatMap((time) => {
         const startsAtMinutes = parseHHMM(time)
@@ -180,7 +193,7 @@ export function buildToday(input: {
   const attachedIds = new Set([
     ...entries.flatMap((e) => e.routine?.checklistIds ?? []),
     ...reminders
-      .filter((r) => r.enabled && r.checklistId && isRelevantToday(r, today))
+      .filter((r) => r.enabled && r.checklistId && withinCourse(r) && isRelevantToday(r, today))
       .map((r) => r.checklistId!),
   ])
   const relevant = checklists.filter((c) => attachedIds.has(c.id))
