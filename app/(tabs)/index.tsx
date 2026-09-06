@@ -19,7 +19,7 @@ import { useClock } from '@/hooks/useClock'
 import { buildToday } from '@/lib/today'
 import { markOnboarded } from '@/lib/data/seed'
 import { EXPO_GO_LIMITATION } from '@/lib/runtime'
-import { formatTime, minutesOfDay, toHHMM } from '@/lib/time'
+import { formatLongDate, formatTime, minutesOfDay, toHHMM } from '@/lib/time'
 import { space, radius } from '@/theme/tokens'
 import { useColors } from '@/theme/ThemeProvider'
 import { S } from '@/lib/strings'
@@ -56,7 +56,7 @@ export default function TodayScreen() {
 
   const dateLabel = useMemo(
     () =>
-      new Intl.DateTimeFormat(locale, { weekday: 'long', day: 'numeric', month: 'long' }).format(now),
+      formatLongDate(now, locale),
     [now, locale],
   )
 

@@ -3,7 +3,7 @@ import { View, StyleSheet } from 'react-native'
 import { Text } from './Text'
 import { PressableScale } from './PressableScale'
 import type { Weekday } from '@/lib/types'
-import { ALL_WEEKDAYS, WEEKDAYS_MON_FRI, WEEKEND } from '@/lib/time'
+import { ALL_WEEKDAYS, WEEKDAYS_MON_FRI, WEEKEND, weekdayName } from '@/lib/time'
 import { space, radius } from '@/theme/tokens'
 import { useColors } from '@/theme/ThemeProvider'
 import { useSettings } from '@/stores/settings'
@@ -42,10 +42,7 @@ export function DayPicker({ value, onChange }: Props) {
     ? [1, 2, 3, 4, 5, 6, 0]
     : [0, 1, 2, 3, 4, 5, 6]
 
-  const initial = (day: Weekday) => {
-    const ref = new Date(2024, 0, 7 + day) // 2024-01-07 was a Sunday
-    return new Intl.DateTimeFormat(locale, { weekday: 'narrow' }).format(ref)
-  }
+  const initial = (day: Weekday) => weekdayName(day, 'narrow', locale)
 
   const toggle = (day: Weekday) => {
     const next = new Set(selected)
@@ -91,9 +88,7 @@ export function DayPicker({ value, onChange }: Props) {
               haptic={false}
               accessibilityRole="checkbox"
               accessibilityState={{ checked: active }}
-              accessibilityLabel={new Intl.DateTimeFormat(locale, { weekday: 'long' }).format(
-                new Date(2024, 0, 7 + day),
-              )}
+              accessibilityLabel={weekdayName(day, 'long', locale)}
               style={[
                 styles.day,
                 { backgroundColor: active ? c.accentSoft : c.surfaceAlt },

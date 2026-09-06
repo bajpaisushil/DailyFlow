@@ -2,7 +2,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   describeDays, isWithinWindow, localDateKey, minutesOfDay,
-  parseHHMM, timestampForTimeOn, toHHMM,
+  formatTime, humanDelta, parseHHMM, timestampForTimeOn, toHHMM, weekdayName,
 } from './time.ts'
 
 describe('parseHHMM', () => {
@@ -94,5 +94,52 @@ describe('describeDays', () => {
     assert.ok(result.includes('Mon'))
     assert.ok(result.includes('Wed'))
     assert.ok(result.includes('Fri'))
+  })
+})
+
+describe('humanDelta', () => {
+  const now = 1_700_000_000_000
+
+  it('says "just now" rather than "0 minutes ago"', () => {
+    assert.equal(humanDelta(now, now), 'just now')
+    assert.equal(humanDelta(now, now + 20_000), 'just now')
+  })
+
+  it('reads naturally in both directions', () => {
+    assert.equal(humanDelta(now, now - 60_000), '1 minute ago')
+    assert.equal(humanDelta(now, now - 600_000), '10 minutes ago')
+    assert.equal(humanDelta(now, now + 600_000), 'in 10 minutes')
+  })
+
+  it('rolls up to hours and days', () => {
+    assert.equal(humanDelta(now, now - 3_600_000), '1 hour ago')
+    assert.equal(humanDelta(now, now - 7_200_000), '2 hours ago')
+    assert.equal(humanDelta(now, now - 86_400_000), '1 day ago')
+    assert.equal(humanDelta(now, now + 172_800_000), 'in 2 days')
+  })
+
+  it('never throws when Intl is thin, because it does not use Intl at all', () => {
+    // Intl.RelativeTimeFormat is undefined on Android Hermes and crashed two screens.
+    assert.doesNotThrow(() => humanDelta(now, now - 500_000))
+  })
+})
+
+describe('formatTime', () => {
+  it('formats both clock styles', () => {
+    assert.ok(formatTime('06:45', true).includes('06:45'))
+    const twelve = formatTime('18:30', false)
+    assert.ok(twelve.includes('6:30'), twelve)
+  })
+
+  it('returns the input unchanged rather than throwing on nonsense', () => {
+    assert.equal(formatTime('99:99', false), '99:99')
+  })
+})
+
+describe('weekdayName', () => {
+  it('gives a letter, a short name and a full name', () => {
+    assert.equal(weekdayName(1, 'long'), 'Monday')
+    assert.equal(weekdayName(1, 'short').slice(0, 3), 'Mon')
+    assert.equal(weekdayName(1, 'narrow').length, 1)
   })
 })
