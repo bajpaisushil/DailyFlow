@@ -16,6 +16,9 @@ import { IconPicker } from '@/components/ui/IconPicker'
 import { CapabilityBadge, type Reach } from '@/components/ui/CapabilityBadge'
 import { SaveBar, SAVE_BAR_CLEARANCE } from '@/components/ui/SaveBar'
 import { LeadTimePicker } from '@/components/reminders/LeadTimePicker'
+import { SoundPicker } from '@/components/reminders/SoundPicker'
+import type { ToneId } from '@/lib/notify/tones'
+import { speak, reminderSpeech } from '@/lib/notify/speak'
 import { useData } from '@/stores/data'
 import { newId } from '@/lib/id'
 import { applyReminder, removeReminder } from '@/lib/engine/applyReminder'
@@ -73,6 +76,10 @@ export default function ReminderEditor() {
   const [vibrate, setVibrate] = useState(existing?.vibrate ?? true)
   const [alertStyle, setAlertStyle] = useState<AlertStyle>(existing?.alertStyle ?? 'notification')
   const [endsOn, setEndsOn] = useState(existing?.endsOn)
+  const [toneId, setToneId] = useState<ToneId>((existing?.toneId as ToneId) ?? 'chime')
+  const [soundFile, setSoundFile] = useState(existing?.soundFile)
+  const [soundLabel, setSoundLabel] = useState(existing?.soundLabel)
+  const [speakAloud, setSpeakAloud] = useState(existing?.speakAloud ?? false)
   const [sound, setSound] = useState(existing?.sound ?? true)
 
   const [addingTime, setAddingTime] = useState(false)
@@ -145,6 +152,10 @@ export default function ReminderEditor() {
       checklistId,
       priority,
       alertStyle,
+      toneId,
+      soundFile,
+      soundLabel,
+      speakAloud,
       sound,
       vibrate,
       createdAt: existing?.createdAt ?? now,
@@ -157,7 +168,8 @@ export default function ReminderEditor() {
     router.back()
   }, [
     canSave, saving, reach, existing, title, icon, times, days,
-    placeTriggers, leads, checklistId, priority, alertStyle, sound, vibrate, endsOn, refresh, router,
+    placeTriggers, leads, checklistId, priority, alertStyle, toneId, soundFile, soundLabel,
+    speakAloud, sound, vibrate, endsOn, refresh, router,
   ])
 
   return (
@@ -535,6 +547,34 @@ export default function ReminderEditor() {
         ) : null}
 
         <Toggle label="Make a sound" icon="speak" value={sound} onChange={setSound} />
+
+        {sound ? (
+          <View style={{ marginTop: space.xs }}>
+            <SoundPicker
+              toneId={toneId}
+              onToneChange={setToneId}
+              soundFile={soundFile}
+              soundLabel={soundLabel}
+              onCustomChange={(file, label) => {
+                setSoundFile(file)
+                setSoundLabel(label)
+              }}
+            />
+          </View>
+        ) : null}
+
+        {/* Reading it out is the most useful thing in this screen for someone who reads
+            slowly — hearing "take your medicine" is easier than decoding it. */}
+        <Toggle
+          label="Read it out loud"
+          help="DailyFlow speaks the reminder. Works while the app is open."
+          icon="mic"
+          value={speakAloud}
+          onChange={(next) => {
+            setSpeakAloud(next)
+            if (next) void speak(reminderSpeech(title.trim() || 'Your reminder'))
+          }}
+        />
         <Toggle label={S.settings.vibrate} icon="phone" value={vibrate} onChange={setVibrate} />
         <Toggle
           label={S.reminder.important}

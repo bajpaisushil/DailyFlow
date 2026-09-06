@@ -69,7 +69,15 @@ const config: ExpoConfig = {
         {
           "icon": "./assets/icon.png",
           "color": "#5B5BD6",
-          "defaultChannel": "reminders"
+          "defaultChannel": "reminders",
+          "sounds": [
+            "./assets/sounds/chime.wav",
+            "./assets/sounds/bell.wav",
+            "./assets/sounds/rise.wav",
+            "./assets/sounds/ping.wav",
+            "./assets/sounds/alarm.wav",
+            "./assets/sounds/knock.wav"
+          ]
         }
       ],
       [

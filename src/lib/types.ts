@@ -356,6 +356,32 @@ export interface Reminder extends BaseRecord {
   priority: NotificationPriority
   /** A quiet message, or something meant to wake you. */
   alertStyle: AlertStyle
+  /**
+   * Read the reminder out loud when it arrives.
+   *
+   * The most useful accessibility feature in the app for its intended audience: someone who
+   * reads slowly can HEAR "take your medicine" rather than decode it. Runs on the device's own
+   * speech engine, so it needs no network and nothing leaves the phone. It requires the app to
+   * be running, which the UI states rather than implying a voice that will not come.
+   */
+  speakAloud?: boolean
+  /**
+   * A sound the user chose for this reminder, stored in app storage.
+   *
+   * Android fixes a notification's sound when its channel is created, so this CANNOT be the
+   * sound the OS plays while DailyFlow is closed. It plays on tapping the reminder, when it
+   * arrives with the app open, and as the looping sound of a full-screen alarm.
+   */
+  soundFile?: string
+  /** The original file name, so the user recognises what they picked. */
+  soundLabel?: string
+  /**
+   * Which bundled tone to use. Bundled sounds are the ones Android can play while DailyFlow
+   * is closed, because it reads a channel's sound from the app's own resources.
+   */
+  toneId?: string
+  /** How long an alarm keeps ringing before it gives up, in seconds. */
+  alarmDurationSeconds?: number
   sound: boolean
   vibrate: boolean
   colorKey?: string
