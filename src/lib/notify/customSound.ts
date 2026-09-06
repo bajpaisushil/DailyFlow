@@ -67,6 +67,13 @@ export async function pickSound(): Promise<PickResult> {
 
     const asset = picked.assets[0]
     if (typeof asset.size === 'number' && asset.size > MAX_BYTES) {
+      // Rejected, but the picker has already cached a copy. Remove it, or refusing a big file
+      // would cost exactly as much disk as accepting it.
+      try {
+        new File(asset.uri).delete()
+      } catch {
+        // Nothing to reclaim.
+      }
       return { ok: false, reason: 'tooLarge' }
     }
 
@@ -76,6 +83,20 @@ export async function pickSound(): Promise<PickResult> {
     const destination = new File(soundsDirectory(), fileName)
 
     source.copy(destination)
+
+    /**
+     * Delete the picker's own copy.
+     *
+     * `copyToCacheDirectory` duplicates the chosen file into the cache so we can read it —
+     * and then leaves it there forever. Every sound the user ever auditioned was being kept
+     * twice, and with files of up to 50 MB that is how an app quietly accumulates hundreds of
+     * megabytes the user cannot account for. We have our own copy now; this one is rubbish.
+     */
+    try {
+      source.delete()
+    } catch {
+      // A cache file that will not delete is the OS's to reclaim, not a reason to fail.
+    }
 
     return {
       ok: true,

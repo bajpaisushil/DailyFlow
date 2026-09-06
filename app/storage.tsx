@@ -7,7 +7,9 @@ import { Card } from '@/components/ui/Card'
 import { Text } from '@/components/ui/Text'
 import { Icon } from '@/components/ui/Icon'
 import { Button } from '@/components/ui/Button'
-import { describeBytes, readStorageReport, type StorageReport } from '@/lib/data/storage'
+import {
+  clearTemporaryFiles, describeBytes, readStorageReport, type StorageReport,
+} from '@/lib/data/storage'
 import { activity as activityRepo, settings as settingsRepo } from '@/lib/db/repo'
 import { space, radius } from '@/theme/tokens'
 import { useColors } from '@/theme/ThemeProvider'
@@ -46,8 +48,48 @@ export default function StorageScreen() {
         </Text>
       </Card>
 
+      {/*
+        Where the space actually goes.
+        The list below breaks down what is INSIDE the database, which is interesting but tiny.
+        These three lines are what the phone's own app info counts, and the reason the total
+        used to disagree with it.
+      */}
       {report ? (
         <Animated.View entering={FadeIn.duration(240)}>
+          <Card style={{ marginBottom: space.xl }}>
+            <Row label="Your reminders and lists" bytes={report.databaseBytes} />
+            <Row label="Sounds you chose" bytes={report.soundBytes} />
+            <Row label="Temporary files" bytes={report.cacheBytes} />
+
+            {report.cacheBytes > 1024 * 1024 ? (
+              <>
+                <Text variant="caption" tone="muted" style={{ marginTop: space.md }}>
+                  Temporary files are working copies. Deleting them changes nothing you made.
+                </Text>
+                <Button
+                  label={`Free up ${describeBytes(report.cacheBytes)}`}
+                  icon="trash"
+                  variant="secondary"
+                  full
+                  style={{ marginTop: space.sm }}
+                  onPress={() => {
+                    const freed = clearTemporaryFiles()
+                    void load()
+                    Alert.alert(
+                      freed > 0 ? 'Cleared' : 'Nothing to clear',
+                      freed > 0
+                        ? `Freed ${describeBytes(freed)}.`
+                        : 'Those files are in use right now. Try again shortly.',
+                    )
+                  }}
+                />
+              </>
+            ) : null}
+          </Card>
+
+          <Text variant="label" tone="muted" style={{ marginBottom: space.sm }}>
+            What is in your reminders and lists
+          </Text>
           <Card padded={false} style={{ paddingVertical: space.sm, marginBottom: space.xl }}>
             {report.lines
               .filter((l) => l.rows > 0)
@@ -132,4 +174,23 @@ const styles = StyleSheet.create({
   fill: { height: '100%', borderRadius: radius.pill },
   size: { width: 62, textAlign: 'right' },
   noteRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+})
+
+/** One "label ......... size" line. The three that add up to what the phone reports. */
+function Row({ label, bytes }: { label: string; bytes: number }) {
+  return (
+    <View style={rowStyles.row}>
+      <Text variant="body" style={{ flex: 1 }} numberOfLines={1}>{label}</Text>
+      <Text variant="body" tone="muted">{describeBytes(bytes)}</Text>
+    </View>
+  )
+}
+
+const rowStyles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    paddingVertical: space.sm,
+  },
 })

@@ -26,9 +26,12 @@ import { duplicateReminder } from '@/lib/duplicateReminder'
 import {
   notificationsAvailable, readPermission, requestPermission, timeIsInQuietHours,
 } from '@/lib/notify/scheduler'
-import type { AlertStyle, NotificationPriority, PlaceTrigger, Reminder, Weekday } from '@/lib/types'
+import type {
+  AlertStyle, LocalDate, NotificationPriority, PlaceTrigger, Reminder, Weekday,
+} from '@/lib/types'
 import { formatTime, WEEKDAYS_MON_FRI } from '@/lib/time'
 import { describeCourse, endDateAfterDays, occurrenceCount } from '@/lib/course'
+import { OnDatePicker, describeDate, toLocalDate } from '@/components/reminders/OnDatePicker'
 import { clockAlarmSupported, setClockAlarm } from '@/lib/notify/clockAlarm'
 import {
   alarmModuleAvailable, canShowFullScreenAlarm, DEFAULT_ALARM_SECONDS,
@@ -96,6 +99,15 @@ export default function ReminderEditor() {
   const [vibrate, setVibrate] = useState(existing?.vibrate ?? true)
   const [alertStyle, setAlertStyle] = useState<AlertStyle>(existing?.alertStyle ?? 'notification')
   const [endsOn, setEndsOn] = useState(existing?.endsOn)
+  const [startsOn, setStartsOn] = useState(existing?.startsOn)
+  /**
+   * Single-day mode. Derived from the saved reminder rather than stored separately: a
+   * reminder that starts and ends on the same day IS a one-off, and keeping a second flag in
+   * sync with that fact is how the two come to disagree.
+   */
+  const [onDate, setOnDate] = useState<LocalDate | undefined>(
+    existing?.startsOn && existing.startsOn === existing.endsOn ? existing.startsOn : undefined,
+  )
   const [toneId, setToneId] = useState<ToneId>((existing?.toneId as ToneId) ?? 'chime')
   const [alarmSeconds, setAlarmSeconds] = useState(
     existing?.alarmDurationSeconds ?? DEFAULT_ALARM_SECONDS,
@@ -181,6 +193,7 @@ export default function ReminderEditor() {
       times,
       days,
       endsOn,
+      startsOn,
       placeTriggers,
       leadMinutes: leads,
       checklistId,
@@ -204,7 +217,7 @@ export default function ReminderEditor() {
   }, [
     canSave, saving, reach, existing, title, icon, times, days,
     placeTriggers, leads, checklistId, priority, alertStyle, toneId, soundFile, soundLabel,
-    speakAloud, alarmSeconds, sound, vibrate, endsOn, refresh, router,
+    speakAloud, alarmSeconds, sound, vibrate, endsOn, startsOn, onDate, refresh, router,
   ])
 
   return (
@@ -343,6 +356,36 @@ export default function ReminderEditor() {
 
           <Text variant="heading" style={styles.section}>For how long?</Text>
           <View style={styles.chips}>
+            {/*
+              "Just one day" is its own mode, not a duration.
+              Everything else here repeats, which covers habits — but the reminders that matter
+              most are often the ones that happen ONCE, on a date you must not get wrong: a
+              festival, an interview, a birthday. There was no way to say that at all.
+            */}
+            <PressableScale
+              onPress={() => {
+                if (onDate) {
+                  setOnDate(undefined)
+                  setStartsOn(undefined)
+                  setEndsOn(undefined)
+                } else {
+                  const today = toLocalDate(new Date())
+                  setOnDate(today)
+                  setStartsOn(today)
+                  setEndsOn(today)
+                }
+              }}
+              depth="sm"
+              accessibilityRole="radio"
+              accessibilityState={{ selected: !!onDate }}
+              accessibilityLabel="Just one day"
+              style={[styles.chip, { backgroundColor: onDate ? c.accent : c.surfaceAlt }]}
+            >
+              <Text variant="label" style={{ color: onDate ? c.onAccent : c.inkMuted }}>
+                Just one day
+              </Text>
+            </PressableScale>
+
             {([
               { label: 'Keep going', days: 0 },
               { label: '3 days', days: 3 },
@@ -351,11 +394,16 @@ export default function ReminderEditor() {
               { label: '1 month', days: 30 },
             ] as const).map((option) => {
               const value = option.days === 0 ? undefined : endDateAfterDays(new Date(), option.days)
-              const active = option.days === 0 ? !endsOn : endsOn === value
+              const active = onDate ? false : option.days === 0 ? !endsOn : endsOn === value
               return (
                 <PressableScale
                   key={option.label}
-                  onPress={() => setEndsOn(value)}
+                  onPress={() => {
+                    // Choosing a duration leaves single-day mode; the two are alternatives.
+                    setOnDate(undefined)
+                    setStartsOn(undefined)
+                    setEndsOn(value)
+                  }}
                   depth="sm"
                   accessibilityRole="radio"
                   accessibilityState={{ selected: active }}
@@ -369,7 +417,24 @@ export default function ReminderEditor() {
               )
             })}
           </View>
-          {endsOn ? (
+          {onDate ? (
+            <View style={{ marginBottom: space.xl }}>
+              <OnDatePicker
+                value={onDate}
+                locale={locale}
+                onChange={(next) => {
+                  setOnDate(next)
+                  setStartsOn(next)
+                  setEndsOn(next)
+                }}
+              />
+              <Text variant="caption" tone="muted" style={{ marginTop: space.sm }}>
+                {onDate
+                  ? `Once, on ${describeDate(onDate, locale)}. It will not repeat.`
+                  : 'Pick the day you want to be reminded.'}
+              </Text>
+            </View>
+          ) : endsOn ? (
             <Text variant="caption" tone="muted" style={{ marginBottom: space.xl }}>
               {describeCourse({ times, endsOn })}
               {'. '}
