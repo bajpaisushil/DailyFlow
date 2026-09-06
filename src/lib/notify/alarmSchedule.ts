@@ -8,7 +8,7 @@ export {
 import {
   alarmModuleAvailable, cancelScheduledAlarm, scheduleAlarm,
 } from '../../../modules/dailyflow-alarm'
-import { DEFAULT_ALARM_SECONDS } from './alarm'
+import { DEFAULT_ALARM_SECONDS } from './ringLength'
 
 /**
  * Scheduling the real alarms.

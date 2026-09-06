@@ -4,6 +4,9 @@ import {
   alarmId, alarmOccurrences, ownSoundOccurrences, wantsOwnSound, currentAlarmIds,
 } from './alarmOccurrences.ts'
 import { nativeFirings, nextNativeFirings } from './nativeFirings.ts'
+import {
+  DEFAULT_ALARM_SECONDS, describeRingLength, RING_UNTIL_STOPPED,
+} from './ringLength.ts'
 import type { Reminder, Weekday } from '../types.ts'
 
 /**
@@ -281,5 +284,39 @@ describe('what the native path claims', () => {
     const r = reminder({ alertStyle: 'both', leadMinutes: [0, 30] })
     // Only one of the two firings is an alarm; the other has to remain a notification.
     assert.equal(alarmOccurrences(r, from, 1).length, 1)
+  })
+})
+
+/**
+ * "Keep ringing until I stop it."
+ *
+ * Stored as zero rather than a big number, so the INTENT survives: the app can say "until you
+ * stop it" back to the user instead of "30 minutes", and the real ceiling can change without
+ * rewriting what everyone already saved. Zero is the trap — every other part of the system
+ * reads a duration and could reasonably treat 0 as "no time at all".
+ */
+describe('ring until stopped', () => {
+  it('reads back as words, not as zero seconds', () => {
+    assert.equal(describeRingLength(RING_UNTIL_STOPPED), 'Until I stop it')
+  })
+
+  it('still describes the fixed lengths properly', () => {
+    assert.equal(describeRingLength(30), '30 seconds')
+    assert.equal(describeRingLength(60), '1 minute')
+    assert.equal(describeRingLength(300), '5 minutes')
+  })
+
+  it('treats any non-positive value as until-stopped, never as silence', () => {
+    // A negative or missing duration must never mean "ring for no time".
+    assert.equal(describeRingLength(0), 'Until I stop it')
+    assert.equal(describeRingLength(-1), 'Until I stop it')
+  })
+
+  it('survives being stored on a reminder', () => {
+    // `?? DEFAULT` would keep 0, but `|| DEFAULT` would silently replace it with 60 — the
+    // classic falsy-zero bug, which here means an alarm that stops after a minute when the
+    // user asked it to keep going.
+    const r = reminder({ alarmDurationSeconds: RING_UNTIL_STOPPED })
+    assert.equal(r.alarmDurationSeconds ?? DEFAULT_ALARM_SECONDS, RING_UNTIL_STOPPED)
   })
 })

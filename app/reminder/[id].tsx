@@ -37,8 +37,9 @@ import {
 import { isDated } from '@/lib/repeat'
 import { clockAlarmSupported, setClockAlarm } from '@/lib/notify/clockAlarm'
 import {
-  alarmModuleAvailable, canShowFullScreenAlarm, DEFAULT_ALARM_SECONDS,
-  openFullScreenAlarmSettings, ringAlarm, stopAlarm,
+  alarmModuleAvailable, canShowFullScreenAlarm, DEFAULT_ALARM_SECONDS, describeRingLength,
+  openFullScreenAlarmSettings, ringAlarm, RING_UNTIL_STOPPED, RING_UNTIL_STOPPED_SECONDS,
+  stopAlarm,
 } from '@/lib/notify/alarm'
 import { describeApproach } from '@/lib/location/approach'
 import { useSettings } from '@/stores/settings'
@@ -671,7 +672,7 @@ export default function ReminderEditor() {
           <Card tone="flat" style={{ marginBottom: space.sm }}>
             <Text variant="label" style={{ marginBottom: space.sm }}>How long should it ring?</Text>
             <View style={styles.chips}>
-              {[30, 60, 120, 300].map((seconds) => {
+              {[30, 60, 120, 300, RING_UNTIL_STOPPED].map((seconds) => {
                 const active = alarmSeconds === seconds
                 return (
                   <PressableScale
@@ -694,6 +695,14 @@ export default function ReminderEditor() {
               })}
             </View>
 
+            {alarmSeconds === RING_UNTIL_STOPPED ? (
+              <Text variant="caption" tone="muted" style={{ marginTop: space.sm }}>
+                It keeps ringing until you press Stop. If nobody does, it gives up after
+                {' '}
+                {RING_UNTIL_STOPPED_SECONDS / 60} minutes so it cannot flatten your battery.
+              </Text>
+            ) : null}
+
             <Button
               label="Try it now"
               icon="play"
@@ -705,7 +714,11 @@ export default function ReminderEditor() {
                   title: title.trim() || 'DailyFlow alarm',
                   body: 'This is how it will sound.',
                   soundFile: soundFile ?? toneId,
-                  durationSeconds: Math.min(alarmSeconds, 20),
+                  // A trial, not the real thing: 20 seconds however long the alarm is set to,
+                  // including "until I stop it", which would otherwise ring for half an hour.
+                  durationSeconds: alarmSeconds === RING_UNTIL_STOPPED
+                    ? 20
+                    : Math.min(alarmSeconds, 20),
                 })
               }}
             />
@@ -880,13 +893,6 @@ export default function ReminderEditor() {
     />
     </>
   )
-}
-
-/** Ring length in words. Never a bare number of seconds. */
-function describeRingLength(seconds: number): string {
-  if (seconds < 60) return `${seconds} seconds`
-  const minutes = seconds / 60
-  return minutes === 1 ? '1 minute' : `${minutes} minutes`
 }
 
 function PlaceToggle({

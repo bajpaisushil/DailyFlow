@@ -37,8 +37,11 @@ export interface AlarmRequest {
   vibrate?: boolean
 }
 
-/** Default ring length. Long enough to wake someone, short enough not to flatten a battery. */
-export const DEFAULT_ALARM_SECONDS = 60
+import { DEFAULT_ALARM_SECONDS } from './ringLength'
+
+export {
+  DEFAULT_ALARM_SECONDS, RING_UNTIL_STOPPED, RING_UNTIL_STOPPED_SECONDS, describeRingLength,
+} from './ringLength'
 
 export function ringAlarm(request: AlarmRequest): boolean {
   return ringNative({

@@ -65,6 +65,18 @@ class AlarmService : Service() {
     /** Nothing rings longer than this, whatever was asked for. */
     const val MAX_DURATION_SECONDS = 15 * 60
 
+    /**
+     * "Keep ringing until I stop it", as a duration of zero.
+     *
+     * A genuinely endless alarm is not something an app should arm: a phone in a bag with
+     * nobody to hear it would ring itself flat, and the reason people uninstall an alarm app
+     * is that it once cost them their battery. So "until I stop it" means THIS long — half an
+     * hour, twice the ordinary ceiling. Long past the point where an alarm is still doing its
+     * job, and the app says so rather than implying it is infinite.
+     */
+    const val UNTIL_STOPPED = 0
+    const val UNTIL_STOPPED_SECONDS = 30 * 60
+
     private const val CHANNEL_ID = "dailyflow-alarm-service"
     private const val NOTIFICATION_ID = 0x0A1A
 
@@ -234,7 +246,10 @@ class AlarmService : Service() {
     val soundUri = intent?.getStringExtra(EXTRA_SOUND_URI)
     val vibrate = intent?.getBooleanExtra(EXTRA_VIBRATE, true) ?: true
     val requested = intent?.getIntExtra(EXTRA_DURATION_SECONDS, 60) ?: 60
-    val duration = requested.coerceIn(5, MAX_DURATION_SECONDS)
+    // Zero is not "no time": it is the user asking for it to keep going until they stop it.
+    val duration =
+      if (requested <= UNTIL_STOPPED) UNTIL_STOPPED_SECONDS
+      else requested.coerceIn(5, MAX_DURATION_SECONDS)
     val incoming = intent?.getStringExtra(EXTRA_STYLE) ?: STYLE_ALARM
 
     armBackstop()
@@ -340,7 +355,9 @@ class AlarmService : Service() {
     if (backstop != null) return
     val runnable = Runnable { stopEverything() }
     backstop = runnable
-    handler.postDelayed(runnable, MAX_DURATION_SECONDS * 1000L)
+    // Must not be shorter than the longest a ring can legitimately last, or it would cut off
+    // an alarm the user explicitly asked to keep going.
+    handler.postDelayed(runnable, UNTIL_STOPPED_SECONDS * 1000L)
   }
 
   /**
