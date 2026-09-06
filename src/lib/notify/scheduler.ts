@@ -33,6 +33,12 @@ export const CHANNEL_ALARM = 'reminders-alarm'
 
 export type PermissionState = 'granted' | 'denied' | 'undetermined'
 
+/** The most recent scheduling failure, shown in the diagnostic rather than hidden. */
+let lastError: string | null = null
+export function lastSchedulingError(): string | null {
+  return lastError
+}
+
 type NotificationsModule = typeof import('expo-notifications')
 
 /** `undefined` = not tried yet, `null` = unavailable on this build. */
@@ -232,7 +238,11 @@ export async function syncSchedules(
     }
 
     return { scheduled: budgeted.length, skipped: plans.length - budgeted.length, available: true }
-  } catch {
+  } catch (error) {
+    // We have already cancelled everything by this point, so a swallowed failure leaves the
+    // user with NO reminders and no indication why. Surface it.
+    console.error('[DailyFlow] scheduling failed', error)
+    lastError = error instanceof Error ? error.message : String(error)
     return { scheduled: 0, skipped: 0, available: false }
   }
 }
@@ -262,6 +272,65 @@ export async function notifyNow(input: {
   } catch {
     // Nothing to recover: the reminder simply is not shown, and the ledger records that.
   }
+}
+
+export interface PendingItem {
+  id: string
+  title: string
+  /** Plain description of when it will next fire. */
+  when: string
+  channel?: string
+}
+
+/**
+ * What the OPERATING SYSTEM actually holds, read back from it rather than inferred.
+ *
+ * This exists because "the reminder is scheduled" was, until now, something the app asserted
+ * and nobody could check. When reminders did not arrive there was no way to tell a scheduling
+ * bug from a permission problem from a device power setting — the app looked identical in all
+ * three cases. Reading the real pending list is the difference between debugging and guessing.
+ */
+export async function pendingNotifications(): Promise<PendingItem[]> {
+  const N = load()
+  if (!N) return []
+  try {
+    const all = await N.getAllScheduledNotificationsAsync()
+    return all.map((item) => ({
+      id: item.identifier,
+      title: typeof item.content?.title === 'string' ? item.content.title : '(no title)',
+      when: describeTrigger(item.trigger),
+      channel:
+        typeof (item.content as { channelId?: string })?.channelId === 'string'
+          ? (item.content as { channelId?: string }).channelId
+          : undefined,
+    }))
+  } catch {
+    return []
+  }
+}
+
+function describeTrigger(trigger: unknown): string {
+  const t = trigger as Record<string, unknown> | null
+  if (!t) return 'Immediately'
+
+  const pad = (n: unknown) => String(n).padStart(2, '0')
+  const type = String(t.type ?? '')
+
+  if (type.includes('daily')) return `Every day at ${pad(t.hour)}:${pad(t.minute)}`
+  if (type.includes('weekly')) {
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+    const weekday = typeof t.weekday === 'number' ? days[t.weekday - 1] : '?'
+    return `Every ${weekday} at ${pad(t.hour)}:${pad(t.minute)}`
+  }
+  if (type.includes('date') || t.value != null) {
+    const at = typeof t.value === 'number' ? new Date(t.value) : null
+    if (at) {
+      const past = at.getTime() < Date.now()
+      return `${at.toLocaleString()}${past ? '  ⚠ in the past' : ''}`
+    }
+  }
+  if (type.includes('timeInterval')) return `In ${String(t.seconds)} seconds`
+  return type || 'Unknown'
 }
 
 export async function pendingCount(): Promise<number> {

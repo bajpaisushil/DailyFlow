@@ -3,15 +3,11 @@ import type { ExpoConfig } from 'expo/config'
 /**
  * Dynamic app config.
  *
- * Exists so the Google Maps key can come from the environment rather than the repository.
- * The map is an optional enhancement — the place editor works through GPS and search
- * without it — so a missing key degrades the map rather than breaking the build.
- *
- * Set it before building:
- *   export GOOGLE_MAPS_API_KEY=...
- *   npx eas build --profile development --platform android
- *
- * iOS needs no key: expo-maps uses Apple Maps there.
+ * There is deliberately nothing to configure and no key to supply. The map is OpenStreetMap
+ * tiles in a WebView, place search is OpenStreetMap too, and everything else — reminders,
+ * alarms, geofencing, GPS — is provided by the operating system. DailyFlow needs no account,
+ * no API key and no billing relationship with anyone, which is a product requirement rather
+ * than an accident.
  */
 const config: ExpoConfig = {
     "name": "DailyFlow",
@@ -82,28 +78,12 @@ const config: ExpoConfig = {
           "locationWhenInUsePermission": "DailyFlow uses your location to know when you arrive at or leave your saved places. Your location never leaves this phone.",
           "isAndroidBackgroundLocationEnabled": true
         }
-      ],
-      "expo-maps"
+      ]
     ],
     "experiments": {
       "typedRoutes": true
     }
   }
 
-const mapsKey = process.env.GOOGLE_MAPS_API_KEY
-if (mapsKey && config.android) {
-  config.android.config = { googleMaps: { apiKey: mapsKey } }
-}
-
-/**
- * A non-secret flag saying whether a Maps key went into this build.
- *
- * The key itself is deliberately stripped from the public manifest, which is what
- * `Constants.expoConfig` reads at runtime — so the app cannot check for the key directly and
- * would conclude there was none even when there is. It needs the answer because the Android
- * Maps SDK does not degrade without a key: it takes the process down, and a native crash
- * cannot be caught in JavaScript. A boolean discloses nothing.
- */
-config.extra = { ...config.extra, hasMapsKey: !!mapsKey }
 
 export default config

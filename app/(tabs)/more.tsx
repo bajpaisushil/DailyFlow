@@ -27,6 +27,8 @@ interface Entry {
 const ENTRIES: Entry[] = [
   { icon: 'list', label: S.nav.lists, help: S.list.help, href: '/lists' },
   { icon: 'repeat', label: S.nav.dayPlans, help: S.plan.help, href: '/plans' },
+  { icon: 'bell', label: 'What is set',
+    help: 'Check that your reminders really are waiting in the phone.', href: '/scheduled' },
   { icon: 'history', label: S.settings.whatHappened, help: S.settings.whatHappenedHelp, href: '/history' },
   { icon: 'space', label: S.settings.spaceUsed, help: S.settings.spaceUsedHelp, href: '/storage' },
   { icon: 'settings', label: S.settings.title, help: S.settings.privacy, href: '/settings' },
