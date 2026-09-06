@@ -12,6 +12,16 @@ import { Platform } from 'react-native'
  * Loaded with requireOptionalNativeModule so a JS-only context (Expo Go, tests, web) gets
  * null instead of a throw. The notification scheduler learned that lesson the hard way.
  */
+/**
+ * How a firing behaves.
+ *
+ * 'alarm' takes over the screen and repeats until stopped. 'sound' plays the user's chosen
+ * audio through once and leaves an ordinary notification behind — the only way a file the
+ * user picked can be the sound they actually hear, since an Android notification channel can
+ * only sound a file compiled into the app and can never change its sound once created.
+ */
+export type FiringStyle = 'alarm' | 'sound'
+
 interface AlarmModule extends NativeModule {
   canShowFullScreen(): boolean
   openFullScreenSettings(): boolean
@@ -22,6 +32,7 @@ interface AlarmModule extends NativeModule {
     soundUri: string | null,
     durationSeconds: number,
     vibrate: boolean,
+    style: FiringStyle | null,
   ): boolean
   stop(): boolean
   schedule(
@@ -32,6 +43,7 @@ interface AlarmModule extends NativeModule {
     soundUri: string | null,
     durationSeconds: number,
     vibrate: boolean,
+    style: FiringStyle | null,
   ): boolean
   cancelScheduled(id: string): boolean
   canScheduleExact(): boolean
@@ -85,6 +97,8 @@ export interface RingOptions {
   /** How long it rings before stopping itself. Clamped to 15 minutes natively. */
   durationSeconds?: number
   vibrate?: boolean
+  /** Defaults to 'alarm'. 'sound' previews a reminder's own audio without the alarm screen. */
+  style?: FiringStyle
 }
 
 /** Start ringing. Returns false when this build cannot. */
@@ -97,6 +111,7 @@ export function ringAlarm(options: RingOptions): boolean {
       options.soundUri ?? null,
       options.durationSeconds ?? 60,
       options.vibrate ?? true,
+      options.style ?? 'alarm',
     )
   } catch {
     return false
@@ -126,6 +141,7 @@ export function scheduleAlarm(input: {
   soundUri?: string
   durationSeconds?: number
   vibrate?: boolean
+  style?: FiringStyle
 }): boolean {
   if (!native) return false
   try {
@@ -137,6 +153,7 @@ export function scheduleAlarm(input: {
       input.soundUri ?? null,
       input.durationSeconds ?? 60,
       input.vibrate ?? true,
+      input.style ?? 'alarm',
     )
   } catch {
     return false

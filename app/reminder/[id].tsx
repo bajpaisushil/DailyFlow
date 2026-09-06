@@ -72,6 +72,18 @@ export default function ReminderEditor() {
   const isNew = id === 'new'
   const existing = useMemo(() => reminders.find((r) => r.id === id), [reminders, id])
 
+  /**
+   * Original names for every sound already in app storage, so one picked for another reminder
+   * is offered back by the name the user recognises rather than its internal file name.
+   */
+  const soundLabels = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const r of reminders) {
+      if (r.soundFile && r.soundLabel) map[r.soundFile] = r.soundLabel
+    }
+    return map
+  }, [reminders])
+
   const [title, setTitle] = useState(existing?.title ?? '')
   const [icon, setIcon] = useState(existing?.icon ?? 'bell')
   const [times, setTimes] = useState<string[]>(existing?.times ?? [])
@@ -672,6 +684,9 @@ export default function ReminderEditor() {
               onToneChange={setToneId}
               soundFile={soundFile}
               soundLabel={soundLabel}
+              labels={soundLabels}
+              notificationOnly={alertStyle === 'notification'}
+              onRingAsAlarm={() => setAlertStyle('both')}
               onCustomChange={(file, label) => {
                 setSoundFile(file)
                 setSoundLabel(label)

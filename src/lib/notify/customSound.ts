@@ -10,11 +10,16 @@ import { newId } from '@/lib/id'
  * reboot, and the file itself can be moved or deleted from the gallery. Copying costs a few
  * megabytes and means the reminder still has its sound in a year.
  *
- * HONEST LIMIT, stated in the UI rather than buried here: Android fixes a notification's sound
- * when the channel is created, so a file chosen at runtime CANNOT become the sound the OS plays
- * for a notification while DailyFlow is closed. It plays when the reminder is tapped, when it
- * arrives with the app open, and — the case it really exists for — as the looping sound of a
- * full-screen alarm.
+ * HONEST LIMIT, stated in the UI rather than buried here: the OS will never play this file
+ * for a notification. Android fixes a channel's sound when the channel is created and reads it
+ * from the app's own compiled-in resources; iOS needs its sounds in the bundle at build time.
+ * A file chosen at runtime is neither.
+ *
+ * So DailyFlow plays it itself. AlarmManager wakes the native module at the right moment and
+ * it plays the file through — the same route the full-screen alarms take, in a quieter mode
+ * that leaves an ordinary notification behind (see `wantsOwnSound`). Where that native module
+ * is absent — iOS, Expo Go — the file genuinely cannot sound while the app is closed, and the
+ * sound picker says so instead of letting someone find out at 6am.
  */
 
 /** Where chosen sounds live. Inside app storage, so they are removed with the app. */
@@ -97,6 +102,46 @@ export function deleteSound(fileName: string): void {
   } catch {
     // Already gone, which is the desired end state anyway.
   }
+}
+
+/**
+ * Every sound the user has already chosen, newest first.
+ *
+ * So a file picked for one reminder can be reused on another with a tap, instead of hunting
+ * through the file system again for something already sitting in app storage. It also makes
+ * the storage honest: these files exist, and this is what is holding them.
+ */
+export function savedSounds(labels: Record<string, string> = {}): ChosenSound[] {
+  try {
+    return soundsDirectory()
+      .list()
+      .filter((entry): entry is File => entry instanceof File)
+      .sort((a, b) => (b.modificationTime ?? 0) - (a.modificationTime ?? 0))
+      .map((file) => ({
+        fileName: file.name,
+        label: labels[file.name] ?? file.name,
+        uri: file.uri,
+      }))
+  } catch {
+    return []
+  }
+}
+
+/** Remove any stored sound no reminder refers to any more. */
+export function pruneUnusedSounds(inUse: Iterable<string>): number {
+  const keep = new Set(inUse)
+  let removed = 0
+  try {
+    for (const entry of soundsDirectory().list()) {
+      if (!(entry instanceof File)) continue
+      if (keep.has(entry.name)) continue
+      entry.delete()
+      removed += 1
+    }
+  } catch {
+    // Storage is not critical; leaving a file costs disk, not correctness.
+  }
+  return removed
 }
 
 /** Total bytes of chosen sounds, for the storage panel. */

@@ -25,6 +25,11 @@ export interface ScheduledPlan {
   /** Stable identifier, so a plan can be reasoned about without an OS handle. */
   key: string
   automationId: string
+  /**
+   * Which reminder this came from, when it came from one. Needed so the scheduler can skip
+   * firings the native sound path has already claimed.
+   */
+  sourceReminderId?: string
   title: string
   body?: string
   priority: NotificationPriority
@@ -69,6 +74,7 @@ export function planFor(automation: Automation, now = new Date()): ScheduledPlan
 
   const base = {
     automationId: automation.id,
+    sourceReminderId: automation.sourceReminderId,
     title: notify.params.title,
     body: notify.params.body,
     priority: notify.params.priority,
@@ -110,4 +116,20 @@ export function planFor(automation: Automation, now = new Date()): ScheduledPlan
     key: `${automation.id}:w${day}`,
     when: { every: 'week', weekday: day, hour, minute },
   }))
+}
+
+/**
+ * Drop the firings a native path has taken over.
+ *
+ * Pure and separate so the rule can be tested without a native runtime: the cost of getting
+ * it wrong is a reminder that either arrives twice or does not arrive at all, and neither is
+ * something to discover on a user's phone.
+ */
+export function withoutClaimedReminders(
+  plans: ScheduledPlan[],
+  claimedReminderIds: Iterable<string>,
+): ScheduledPlan[] {
+  const claimed = new Set(claimedReminderIds)
+  if (claimed.size === 0) return plans
+  return plans.filter((p) => !(p.sourceReminderId && claimed.has(p.sourceReminderId)))
 }

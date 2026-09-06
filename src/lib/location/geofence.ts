@@ -122,6 +122,8 @@ async function handleRegionEvent(identifier: string, entering: boolean): Promise
       settings,
       checklists,
       runs,
+      // So "you already ticked everything" means THIS occurrence's ticks, not this morning's.
+      reminders: repo.reminders.all(),
     })
 
     if (!decision.allow) {

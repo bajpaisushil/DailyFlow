@@ -26,10 +26,54 @@ export function alarmOccurrences(
   from: Date,
   horizonDays = HORIZON_DAYS,
 ): number[] {
-  if (!reminder.enabled) return []
   // Ordinary reminders stay on the notification path. Seizing the screen for those is the
   // behaviour people switch the whole feature off over.
   if (reminder.alertStyle !== 'alarm' && reminder.alertStyle !== 'both') return []
+  return timedOccurrences(reminder, from, horizonDays)
+}
+
+/**
+ * Whether this reminder's sound has to be played by us rather than by the OS.
+ *
+ * A notification's sound belongs to its Android channel, and a channel can only sound a file
+ * COMPILED INTO THE APP — never one the user picked, which lives in storage the system's
+ * notification service is not allowed to read. Android therefore substitutes the phone's
+ * default, and the file the user chose is simply never heard.
+ *
+ * So for a notification-only reminder with a chosen sound we take the same route the alarms
+ * take: AlarmManager wakes a native receiver, which plays the file itself and posts the
+ * reminder. Reminders that already ring as alarms are excluded — they play the file anyway.
+ */
+export function wantsOwnSound(reminder: Reminder): boolean {
+  return (
+    reminder.sound === true &&
+    !!reminder.soundFile &&
+    reminder.alertStyle === 'notification'
+  )
+}
+
+/**
+ * The moments a notification-only reminder must play its own sound at.
+ *
+ * Every firing, including the early warnings — unlike an alarm, this is not disruptive, so
+ * there is no reason to make the lead times sound different from the reminder itself.
+ */
+export function ownSoundOccurrences(
+  reminder: Reminder,
+  from: Date,
+  horizonDays = HORIZON_DAYS,
+): number[] {
+  if (!wantsOwnSound(reminder)) return []
+  return timedOccurrences(reminder, from, horizonDays)
+}
+
+/** The clock arithmetic both paths share. */
+function timedOccurrences(
+  reminder: Reminder,
+  from: Date,
+  horizonDays: number,
+): number[] {
+  if (!reminder.enabled) return []
   if (reminder.times.length === 0) return []
 
   // A bounded course already knows its own dates; reuse that rather than duplicate the logic.

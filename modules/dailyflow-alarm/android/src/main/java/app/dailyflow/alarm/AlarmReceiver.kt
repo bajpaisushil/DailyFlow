@@ -34,6 +34,7 @@ class AlarmReceiver : BroadcastReceiver() {
     val soundUri = intent.getStringExtra(AlarmService.EXTRA_SOUND_URI)
     val duration = intent.getIntExtra(AlarmService.EXTRA_DURATION_SECONDS, 60)
     val vibrate = intent.getBooleanExtra(AlarmService.EXTRA_VIBRATE, true)
+    val style = intent.getStringExtra(AlarmService.EXTRA_STYLE) ?: AlarmService.STYLE_ALARM
 
     // Start the sound first: it is what actually wakes someone, and it must not wait on the
     // window manager deciding whether the activity may appear.
@@ -44,6 +45,7 @@ class AlarmReceiver : BroadcastReceiver() {
       putExtra(AlarmService.EXTRA_SOUND_URI, soundUri)
       putExtra(AlarmService.EXTRA_DURATION_SECONDS, duration)
       putExtra(AlarmService.EXTRA_VIBRATE, vibrate)
+      putExtra(AlarmService.EXTRA_STYLE, style)
     }
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
       context.startForegroundService(service)
@@ -51,7 +53,11 @@ class AlarmReceiver : BroadcastReceiver() {
       context.startService(service)
     }
 
-    postFullScreenNotification(context, title, body)
+    /**
+     * Only an alarm takes over the screen. In sound mode the service posts the reminder
+     * itself, so posting one here too would show the same thing twice.
+     */
+    if (style == AlarmService.STYLE_ALARM) postFullScreenNotification(context, title, body)
   }
 
   /**

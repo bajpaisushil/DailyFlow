@@ -1,6 +1,7 @@
 import type {
   ActivityEvent, Checklist, ChecklistRun, HHMM, Place, Reminder, Routine, Weekday,
 } from '@/lib/types'
+import { checklistPeriodKey } from '@/lib/checklistPeriod'
 import { alreadyThere, currentPlace, type Presence } from '@/lib/presence'
 import { localDateKey, minutesOfDay, parseHHMM, weekdayOf } from '@/lib/time'
 
@@ -219,8 +220,18 @@ export function buildToday(input: {
   ])
   const relevant = checklists.filter((c) => attachedIds.has(c.id))
 
+  /**
+   * A run belongs to an OCCURRENCE, not to a day. Matching on the date alone showed the
+   * morning's ticks against the evening's reminder — the list looked packed when it was not.
+   */
   const runByChecklist = new Map(
-    runs.filter((r) => r.periodKey === periodKey).map((r) => [r.checklistId, r]),
+    relevant
+      .map((c) => {
+        const key = checklistPeriodKey(c.id, reminders, now)
+        const run = runs.find((r) => r.checklistId === c.id && r.periodKey === key)
+        return run ? ([c.id, run] as const) : null
+      })
+      .filter((e): e is readonly [string, ChecklistRun] => e !== null),
   )
 
   const todayChecklists: TodayChecklist[] = relevant.map((c) => {

@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { alarmId, alarmOccurrences } from './alarmOccurrences.ts'
+import { alarmId, alarmOccurrences, ownSoundOccurrences, wantsOwnSound } from './alarmOccurrences.ts'
 import type { Reminder, Weekday } from '../types.ts'
 
 /**
@@ -109,5 +109,64 @@ describe('alarmId', () => {
     assert.equal(alarmId('r1', 123), alarmId('r1', 123))
     assert.notEqual(alarmId('r1', 123), alarmId('r1', 456))
     assert.notEqual(alarmId('r1', 123), alarmId('r2', 123))
+  })
+})
+
+/**
+ * Playing a reminder's own sound ourselves.
+ *
+ * The bug: a user attached their own audio to an ordinary reminder and heard the phone's
+ * default instead. Android reads a notification's sound from its channel, a channel can only
+ * sound a file compiled into the app, and its sound can never change once created — so a file
+ * the user picked could NEVER be what the OS plays. The only way is to be woken by
+ * AlarmManager and play it ourselves.
+ */
+describe('ownSoundOccurrences', () => {
+  const own = (over: Partial<Reminder> = {}) =>
+    reminder({ alertStyle: 'notification', soundFile: 'abc.mp3', ...over })
+
+  it('claims a notification-only reminder that has its own sound', () => {
+    assert.equal(wantsOwnSound(own()), true)
+    assert.equal(ownSoundOccurrences(own(), from, 7).length, 7)
+  })
+
+  it('leaves a bundled tone to the OS', () => {
+    // A tone that ships with the app IS a valid channel sound, and the OS plays it even when
+    // DailyFlow has been killed. Taking that over would be strictly worse.
+    assert.equal(wantsOwnSound(own({ soundFile: undefined })), false)
+    assert.deepEqual(ownSoundOccurrences(own({ soundFile: undefined }), from, 7), [])
+  })
+
+  it('leaves an alarm alone, because an alarm already plays the file', () => {
+    for (const style of ['alarm', 'both'] as const) {
+      assert.equal(wantsOwnSound(own({ alertStyle: style })), false)
+    }
+  })
+
+  it('stays silent when the user turned the sound off', () => {
+    assert.equal(wantsOwnSound(own({ sound: false })), false)
+  })
+
+  it('plays at the early warnings too, unlike an alarm', () => {
+    // An alarm deliberately rings only at the real moment — seizing the screen half an hour
+    // early is what makes people switch alarms off. Merely making a sound is not disruptive,
+    // so a lead time should sound exactly like the reminder does.
+    const out = ownSoundOccurrences(own({ leadMinutes: [0, 30] }), from, 1)
+    assert.equal(out.length, 2)
+    assert.deepEqual(
+      out.map((at) => new Date(at).getHours() * 60 + new Date(at).getMinutes()),
+      [5 * 60 + 30, 6 * 60],
+    )
+  })
+
+  it('never claims a disabled reminder', () => {
+    assert.deepEqual(ownSoundOccurrences(own({ enabled: false }), from, 7), [])
+  })
+
+  it('shares ids with the alarm path, so one cancel clears both', () => {
+    // Both routes go through the same AlarmManager slot. If they produced different ids, a
+    // reminder switched from alarm to notification would leave its old alarm ringing forever.
+    const at = ownSoundOccurrences(own(), from, 1)[0]!
+    assert.equal(alarmId('r1', at), `r1:${at}`)
   })
 })

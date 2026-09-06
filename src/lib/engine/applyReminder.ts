@@ -37,8 +37,19 @@ export async function applyReminder(reminder: Reminder): Promise<ReminderResult>
     repo.automations.purge(id)
   }
 
-  const [schedule, geofence] = await Promise.all([resyncAll(), syncGeofences()])
+  /**
+   * Alarms FIRST, then notifications.
+   *
+   * The alarm pass is what discovers which reminders play their own sound natively, and the
+   * notification pass has to skip exactly those. Running them in parallel would mean the
+   * notification schedule was built before anyone knew, and every such reminder would arrive
+   * twice — once with the sound the user chose, once with the phone's default.
+   */
   const alarms = resyncAlarms()
+  const [schedule, geofence] = await Promise.all([
+    resyncAll(alarms.ownSoundReminderIds),
+    syncGeofences(),
+  ])
 
   return {
     ...schedule,
@@ -56,12 +67,20 @@ export async function applyReminder(reminder: Reminder): Promise<ReminderResult>
  * expose, and our JavaScript is not running when the moment arrives — so an "alarm" scheduled
  * that way could only ever have been a louder banner.
  */
-export function resyncAlarms(): { scheduled: number; exact: boolean } {
+export function resyncAlarms(): {
+  scheduled: number
+  exact: boolean
+  ownSoundReminderIds: string[]
+} {
   const reminders = repo.reminders.all()
   // Cancel by the ids we would have created, since AlarmManager cannot be enumerated.
   const previous = currentAlarmIds(reminders)
   const result = syncAlarms(reminders, previous)
-  return { scheduled: result.scheduled, exact: result.exact }
+  return {
+    scheduled: result.scheduled,
+    exact: result.exact,
+    ownSoundReminderIds: result.ownSoundReminderIds,
+  }
 }
 
 /** Removes a reminder and everything it generated. */
@@ -70,6 +89,6 @@ export async function removeReminder(reminderId: string): Promise<void> {
     if (a.sourceReminderId === reminderId) repo.automations.purge(a.id)
   }
   repo.reminders.remove(reminderId)
-  await Promise.all([resyncAll(), syncGeofences()])
-  resyncAlarms()
+  const alarms = resyncAlarms()
+  await Promise.all([resyncAll(alarms.ownSoundReminderIds), syncGeofences()])
 }

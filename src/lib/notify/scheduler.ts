@@ -3,7 +3,10 @@ import type { Automation, NotificationPriority } from '@/lib/types'
 import { isWithinWindow, parseHHMM } from '@/lib/time'
 import { supportsScheduledNotifications } from '@/lib/runtime'
 import { channelIdForTone, soundNameForTone, TONES, type ToneId } from './tones'
-import { MAX_PENDING, planFor, type ScheduledPlan, type TriggerPlan } from './plan'
+import {
+  MAX_PENDING, planFor, withoutClaimedReminders,
+  type ScheduledPlan, type TriggerPlan,
+} from './plan'
 
 export { MAX_PENDING, planFor } from './plan'
 export type { ScheduledPlan, TriggerPlan } from './plan'
@@ -246,7 +249,16 @@ export function timeIsInQuietHours(
 
 export async function syncSchedules(
   automations: Automation[],
-  opts: { vibrate: boolean; quietHours?: { enabled: boolean; from: string; to: string; allowImportant: boolean } },
+  opts: {
+    vibrate: boolean
+    quietHours?: { enabled: boolean; from: string; to: string; allowImportant: boolean }
+    /**
+     * Reminders whose sound the native path is playing itself. Their firings are skipped here
+     * so the user gets one reminder with the sound they chose, rather than two — ours with
+     * the right sound and the OS's with the phone default.
+     */
+    ownSoundReminderIds?: readonly string[]
+  },
 ): Promise<SyncResult> {
   const N = load()
   if (!N) return { scheduled: 0, skipped: 0, available: false }
@@ -259,7 +271,10 @@ export async function syncSchedules(
   try {
     await N.cancelAllScheduledNotificationsAsync()
 
-    const plans = automations.flatMap((a) => planFor(a))
+    const plans = withoutClaimedReminders(
+      automations.flatMap((a) => planFor(a)),
+      opts.ownSoundReminderIds ?? [],
+    )
 
     /**
      * Keep the SOONEST firings, not the first ones the loop happened to produce.

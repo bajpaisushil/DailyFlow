@@ -28,10 +28,16 @@ export async function boot(): Promise<BootReport> {
   backfillSortKeys()
   prune()
 
-  const [schedule, geofence] = await Promise.all([resyncAll(), syncGeofences()])
   // Alarms are laid out only two weeks ahead, so every start extends the horizon — and this
   // is also what restores them after a reboot, when AlarmManager forgets everything.
+  //
+  // It runs BEFORE the notification schedule because it decides which reminders play their
+  // own sound natively, and those must not also be scheduled as OS notifications.
   const alarms = resyncAlarms()
+  const [schedule, geofence] = await Promise.all([
+    resyncAll(alarms.ownSoundReminderIds),
+    syncGeofences(),
+  ])
 
   return {
     alarmsScheduled: alarms.scheduled,

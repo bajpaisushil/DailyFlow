@@ -1,5 +1,8 @@
-import type { Automation, AppSettings, Checklist, ChecklistRun, NotificationPriority } from '@/lib/types'
+import type {
+  Automation, AppSettings, Checklist, ChecklistRun, NotificationPriority, Reminder,
+} from '@/lib/types'
 import { isWithinWindow, localDateKey, minutesOfDay } from '@/lib/time'
+import { checklistPeriodKey } from '@/lib/checklistPeriod'
 import { activity, automations, firings } from '@/lib/db/repo'
 
 /**
@@ -30,6 +33,12 @@ export interface GovernanceInput {
   settings: AppSettings
   checklists: Checklist[]
   runs: ChecklistRun[]
+  /**
+   * The reminders in play, so a checklist's CURRENT run can be identified. A list attached to
+   * a twice-daily reminder has two runs a day; without these, the evening firing would be
+   * suppressed by the morning's ticks.
+   */
+  reminders?: Reminder[]
 }
 
 /**
@@ -69,7 +78,9 @@ export function dedupeKey(automationId: string, occurrenceKey: string): string {
 }
 
 export function decide(input: GovernanceInput): Decision {
-  const { automation, occurrenceKey, priority, now, settings, checklists, runs } = input
+  const {
+    automation, occurrenceKey, priority, now, settings, checklists, runs, reminders = [],
+  } = input
 
   // 1. Idempotence. A ledger row — whatever its outcome — blocks a repeat.
   if (firings.has(dedupeKey(automation.id, occurrenceKey))) {
@@ -85,7 +96,7 @@ export function decide(input: GovernanceInput): Decision {
   if (settings.notifications.suppressWhenChecklistDone) {
     const notify = automation.actions.find((a) => a.kind === 'notify')
     const listId = notify?.kind === 'notify' ? notify.params.includeChecklistId : undefined
-    if (listId && isChecklistDone(listId, checklists, runs, now)) {
+    if (listId && isChecklistDone(listId, checklists, runs, now, reminders)) {
       return { allow: false, reason: 'You already ticked everything.' }
     }
   }
@@ -152,11 +163,13 @@ function isChecklistDone(
   checklists: Checklist[],
   runs: ChecklistRun[],
   now: Date,
+  /** Needed to know WHICH run of the list is current — a twice-daily list has two a day. */
+  reminders: Reminder[],
 ): boolean {
   const list = checklists.find((c) => c.id === checklistId)
   if (!list) return false
   const run = runs.find(
-    (r) => r.checklistId === checklistId && r.periodKey === localDateKey(now),
+    (r) => r.checklistId === checklistId && r.periodKey === checklistPeriodKey(checklistId, reminders, now),
   )
   if (!run) return false
   const checked = new Set(run.checkedItemIds)

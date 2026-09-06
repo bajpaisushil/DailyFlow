@@ -33,6 +33,7 @@ class DailyFlowAlarmModule : Module() {
     soundUri: String?,
     durationSeconds: Int,
     vibrate: Boolean,
+    style: String,
   ): android.app.PendingIntent {
     val intent = Intent(context, AlarmReceiver::class.java).apply {
       action = AlarmReceiver.ACTION_FIRE
@@ -41,6 +42,7 @@ class DailyFlowAlarmModule : Module() {
       putExtra(AlarmService.EXTRA_SOUND_URI, soundUri)
       putExtra(AlarmService.EXTRA_DURATION_SECONDS, durationSeconds)
       putExtra(AlarmService.EXTRA_VIBRATE, vibrate)
+      putExtra(AlarmService.EXTRA_STYLE, style)
     }
     return android.app.PendingIntent.getBroadcast(
       context,
@@ -83,7 +85,8 @@ class DailyFlowAlarmModule : Module() {
      * Ring now. Starts the sound first and then the screen, so audio begins even if the
      * activity is delayed — the sound is what actually wakes someone.
      */
-    Function("ring") { title: String, body: String?, soundUri: String?, durationSeconds: Int, vibrate: Boolean ->
+    Function("ring") { title: String, body: String?, soundUri: String?, durationSeconds: Int, vibrate: Boolean, style: String? ->
+      val sounding = (style ?: AlarmService.STYLE_ALARM) == AlarmService.STYLE_SOUND
       val service = Intent(context, AlarmService::class.java).apply {
         action = AlarmService.ACTION_START
         putExtra(AlarmService.EXTRA_TITLE, title)
@@ -91,6 +94,7 @@ class DailyFlowAlarmModule : Module() {
         putExtra(AlarmService.EXTRA_SOUND_URI, soundUri)
         putExtra(AlarmService.EXTRA_DURATION_SECONDS, durationSeconds)
         putExtra(AlarmService.EXTRA_VIBRATE, vibrate)
+        putExtra(AlarmService.EXTRA_STYLE, style ?: AlarmService.STYLE_ALARM)
       }
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         context.startForegroundService(service)
@@ -98,13 +102,17 @@ class DailyFlowAlarmModule : Module() {
         context.startService(service)
       }
 
-      context.startActivity(
-        Intent(context, AlarmActivity::class.java).apply {
-          addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-          putExtra(AlarmActivity.EXTRA_TITLE, title)
-          putExtra(AlarmActivity.EXTRA_BODY, body)
-        },
-      )
+      // Previewing a reminder's own sound must not throw the alarm screen over the app the
+      // user is standing in — they are listening to a sound, not being woken.
+      if (!sounding) {
+        context.startActivity(
+          Intent(context, AlarmActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            putExtra(AlarmActivity.EXTRA_TITLE, title)
+            putExtra(AlarmActivity.EXTRA_BODY, body)
+          },
+        )
+      }
       true
     }
 
@@ -120,7 +128,7 @@ class DailyFlowAlarmModule : Module() {
      * as a user-visible alarm, so it survives Doze and battery optimisation — the two things
      * that silently kill everything else on the phones this app is most likely to run on.
      */
-    Function("schedule") { id: String, triggerAtMs: Double, title: String, body: String?, soundUri: String?, durationSeconds: Int, vibrate: Boolean ->
+    Function("schedule") { id: String, triggerAtMs: Double, title: String, body: String?, soundUri: String?, durationSeconds: Int, vibrate: Boolean, style: String? ->
       val manager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
 
       // From Android 12 an exact alarm needs permission; without it, fall back to an inexact
@@ -131,7 +139,10 @@ class DailyFlowAlarmModule : Module() {
         true
       }
 
-      val pending = pendingFor(id, title, body, soundUri, durationSeconds, vibrate)
+      val pending = pendingFor(
+        id, title, body, soundUri, durationSeconds, vibrate,
+        style ?: AlarmService.STYLE_ALARM,
+      )
 
       if (canBeExact) {
         manager.setAlarmClock(
@@ -151,7 +162,13 @@ class DailyFlowAlarmModule : Module() {
     /** Cancel one scheduled alarm. Cheap, and safe if it was never scheduled. */
     Function("cancelScheduled") { id: String ->
       val manager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
-      manager.cancel(pendingFor(id, "", null, null, 60, true))
+      /**
+       * Cancel BOTH styles: the PendingIntent is matched by requestCode and Intent identity,
+       * and the extras do not take part in that match — but scheduling the same id in the
+       * other style would have replaced it via FLAG_UPDATE_CURRENT, so one cancel is enough.
+       * Passing the alarm style keeps that explicit rather than accidental.
+       */
+      manager.cancel(pendingFor(id, "", null, null, 60, true, AlarmService.STYLE_ALARM))
       true
     }
 

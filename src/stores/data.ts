@@ -3,6 +3,7 @@ import type {
   Automation, Checklist, ChecklistRun, Place, Reminder, Routine,
 } from '@/lib/types'
 import * as repo from '@/lib/db/repo'
+import { checklistPeriodKey } from '@/lib/checklistPeriod'
 import { localDateKey } from '@/lib/time'
 import { syncGeofences } from '@/lib/location/geofence'
 
@@ -131,7 +132,9 @@ export const useData = create<DataState>((set, get) => ({
   },
 
   toggleItem: (checklistId, itemId) => {
-    const periodKey = localDateKey(new Date())
+    // Keyed by OCCURRENCE, not by date: a list attached to a twice-a-day reminder must come
+    // back fresh for the evening rather than still showing the morning's ticks.
+    const periodKey = checklistPeriodKey(checklistId, get().reminders, new Date())
     const existing = repo.checklistRuns.forPeriod(checklistId, periodKey)
     const checklist = get().checklists.find((c) => c.id === checklistId)
 
@@ -159,7 +162,7 @@ export const useData = create<DataState>((set, get) => ({
   },
 
   clearRun: (checklistId) => {
-    const periodKey = localDateKey(new Date())
+    const periodKey = checklistPeriodKey(checklistId, get().reminders, new Date())
     const existing = repo.checklistRuns.forPeriod(checklistId, periodKey)
     if (!existing) return
     repo.checklistRuns.save({ ...existing, checkedItemIds: [], completedAt: undefined })

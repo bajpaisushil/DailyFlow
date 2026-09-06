@@ -52,7 +52,14 @@ export async function removeRoutine(routineId: string): Promise<void> {
  * Re-hand the whole enabled rule set to the OS. Called after any change that could alter
  * what should fire, and on app start so a reinstall or an OS-level clear is repaired.
  */
-export async function resyncAll(): Promise<Omit<ApplyResult, 'automations'>> {
+export async function resyncAll(
+  /**
+   * Reminders the native sound path has already claimed. Passed in rather than looked up so
+   * this stays the single place that talks to the notification scheduler, and so the two
+   * schedules cannot disagree about who owns a firing.
+   */
+  ownSoundReminderIds: readonly string[] = [],
+): Promise<Omit<ApplyResult, 'automations'>> {
   // A build that cannot schedule at all (Expo Go) is a different state from one where the
   // user has simply not granted permission. The UI needs to tell them apart.
   if (!notificationsAvailable()) {
@@ -69,6 +76,7 @@ export async function resyncAll(): Promise<Omit<ApplyResult, 'automations'>> {
   const { scheduled, skipped } = await syncSchedules(enabled, {
     vibrate: settings.notifications.vibrate,
     quietHours: settings.notifications.quietHours,
+    ownSoundReminderIds,
   })
 
   return { scheduled, skipped, notificationsAllowed: true }

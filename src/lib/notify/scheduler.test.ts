@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { MAX_PENDING, planFor } from './plan.ts'
+import { MAX_PENDING, planFor, withoutClaimedReminders, type ScheduledPlan } from './plan.ts'
 import type { Automation } from '../types.ts'
 
 /**
@@ -188,5 +188,41 @@ describe('budget and quiet hours — regressions from the pre-release audit', ()
       const earliestDropped = Math.min(...dropped.map(rank))
       assert.ok(latestKept <= earliestDropped, 'what is dropped must be the far future')
     }
+  })
+})
+
+/**
+ * Not scheduling what something else is already going to do.
+ *
+ * A notification-only reminder with the user's own audio is fired by AlarmManager and played
+ * by us, because Android will not let a chosen file be a notification channel's sound. The OS
+ * schedule must then leave that reminder alone — otherwise it arrives twice, once with the
+ * sound the user picked and once with the phone's default.
+ */
+describe('withoutClaimedReminders', () => {
+  const plan = (id: string, reminderId?: string): ScheduledPlan => ({
+    key: id,
+    automationId: id,
+    sourceReminderId: reminderId,
+    title: 'x',
+    priority: 'normal',
+    when: { every: 'day', hour: 8, minute: 0 },
+  })
+
+  it('drops every firing of a claimed reminder', () => {
+    const out = withoutClaimedReminders([plan('a', 'r1'), plan('b', 'r1'), plan('c', 'r2')], ['r1'])
+    assert.deepEqual(out.map((p) => p.key), ['c'])
+  })
+
+  it('keeps everything when nothing is claimed', () => {
+    const plans = [plan('a', 'r1'), plan('b')]
+    assert.equal(withoutClaimedReminders(plans, []), plans)
+  })
+
+  it('never drops a plan with no reminder behind it', () => {
+    // Routines compile to automations with no source reminder. They must survive whatever a
+    // reminder elsewhere happens to be called.
+    const out = withoutClaimedReminders([plan('a')], ['r1', 'undefined', ''])
+    assert.equal(out.length, 1)
   })
 })
