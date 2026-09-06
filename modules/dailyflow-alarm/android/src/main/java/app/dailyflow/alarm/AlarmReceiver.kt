@@ -24,6 +24,7 @@ class AlarmReceiver : BroadcastReceiver() {
   companion object {
     const val ACTION_FIRE = "app.dailyflow.alarm.FIRE"
     private const val CHANNEL_ID = "dailyflow-fullscreen-alarm"
+    private const val FALLBACK_CHANNEL_ID = "dailyflow-sound-fallback"
   }
 
   override fun onReceive(context: Context, intent: Intent) {
@@ -47,17 +48,85 @@ class AlarmReceiver : BroadcastReceiver() {
       putExtra(AlarmService.EXTRA_VIBRATE, vibrate)
       putExtra(AlarmService.EXTRA_STYLE, style)
     }
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-      context.startForegroundService(service)
-    } else {
-      context.startService(service)
+    val started = try {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        context.startForegroundService(service)
+      } else {
+        context.startService(service)
+      }
+      true
+    } catch (_: Exception) {
+      /**
+       * Android may refuse to start a foreground service from the background.
+       *
+       * An EXACT alarm broadcast is exempt, which is the normal path — but where the user has
+       * withheld the exact-alarm permission we fall back to setAndAllowWhileIdle, and that
+       * broadcast carries no exemption. On those phones this throws.
+       *
+       * It matters most in sound mode: the ordinary notification schedule deliberately SKIPS
+       * these reminders, so a silent failure here would mean nothing arrived at all. Better a
+       * reminder with the wrong sound than no reminder.
+       */
+      false
     }
 
-    /**
-     * Only an alarm takes over the screen. In sound mode the service posts the reminder
-     * itself, so posting one here too would show the same thing twice.
-     */
-    if (style == AlarmService.STYLE_ALARM) postFullScreenNotification(context, title, body)
+    when {
+      // Only an alarm takes over the screen. In sound mode the service posts the reminder
+      // itself, so posting one here too would show the same thing twice.
+      style == AlarmService.STYLE_ALARM -> postFullScreenNotification(context, title, body)
+      !started -> postPlainNotification(context, title, body)
+    }
+  }
+
+  /**
+   * The reminder, as an ordinary notification with the phone's own sound.
+   *
+   * The last resort for sound mode, used only when the player could not be started. It is not
+   * what the user asked for — their chosen file is not what sounds — but it is the reminder,
+   * and a reminder that arrives imperfectly beats one that never arrives.
+   */
+  private fun postPlainNotification(context: Context, title: String, body: String?) {
+    val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      manager.createNotificationChannel(
+        NotificationChannel(
+          FALLBACK_CHANNEL_ID,
+          "Reminders",
+          NotificationManager.IMPORTANCE_HIGH,
+        ).apply { description = "Reminders DailyFlow could not sound itself." },
+      )
+    }
+
+    val open = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
+      addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    val pending = open?.let {
+      PendingIntent.getActivity(
+        context, 2, it,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+      )
+    }
+
+    val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      android.app.Notification.Builder(context, FALLBACK_CHANNEL_ID)
+    } else {
+      @Suppress("DEPRECATION")
+      android.app.Notification.Builder(context)
+    }
+
+    manager.notify(
+      0x0A1D,
+      builder
+        .setContentTitle(title)
+        .apply {
+          if (!body.isNullOrBlank()) setContentText(body)
+          if (pending != null) setContentIntent(pending)
+        }
+        .setSmallIcon(context.applicationInfo.icon)
+        .setAutoCancel(true)
+        .build(),
+    )
   }
 
   /**

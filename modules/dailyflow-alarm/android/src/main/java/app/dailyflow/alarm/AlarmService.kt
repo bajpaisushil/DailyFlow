@@ -60,7 +60,7 @@ class AlarmService : Service() {
 
     /** The reminder's own notification, in sound mode. Distinct from the alarm's. */
     private const val SOUND_CHANNEL_ID = "dailyflow-own-sound"
-    private const val SOUND_NOTIFICATION_ID = 0x0A1B
+    private const val SOUND_NOTIFICATION_ID = 0x0A1C
 
     /** Nothing rings longer than this, whatever was asked for. */
     const val MAX_DURATION_SECONDS = 15 * 60
