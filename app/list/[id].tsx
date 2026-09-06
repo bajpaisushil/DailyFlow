@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react'
-import { View, StyleSheet, TextInput } from 'react-native'
+import { View, StyleSheet, TextInput , Alert } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import Animated, { FadeIn, LinearTransition } from 'react-native-reanimated'
 import { Screen } from '@/components/ui/Screen'
@@ -181,8 +181,23 @@ export default function ListEditor() {
           full
           style={{ marginTop: space['3xl'] }}
           onPress={() => {
-            removeChecklist(existing.id)
-            router.back()
+            // Nothing the user made is destroyed without being asked. A Remove button
+            // that acts on the first tap is how people lose things they meant to keep.
+            Alert.alert(
+              `Remove ${existing.name}?`,
+              'Anything that uses this list will lose it.',
+              [
+                { text: S.action.goBack, style: 'cancel' },
+                {
+                  text: S.action.remove,
+                  style: 'destructive',
+                  onPress: () => {
+                  removeChecklist(existing.id)
+                  router.back()
+                  },
+                },
+              ],
+            )
           }}
         />
       ) : null}

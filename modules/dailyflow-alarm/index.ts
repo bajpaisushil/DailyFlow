@@ -24,6 +24,18 @@ interface AlarmModule extends NativeModule {
     vibrate: boolean,
   ): boolean
   stop(): boolean
+  schedule(
+    id: string,
+    triggerAtMs: number,
+    title: string,
+    body: string | null,
+    soundUri: string | null,
+    durationSeconds: number,
+    vibrate: boolean,
+  ): boolean
+  cancelScheduled(id: string): boolean
+  canScheduleExact(): boolean
+  openExactAlarmSettings(): boolean
 }
 
 const native = requireOptionalNativeModule<AlarmModule>('DailyFlowAlarm')
@@ -96,5 +108,62 @@ export function stopAlarm(): void {
     native?.stop()
   } catch {
     // Nothing ringing, or no module.
+  }
+}
+
+/**
+ * Schedule an alarm for a wall-clock moment.
+ *
+ * Returns whether it was scheduled EXACTLY. From Android 12 an exact alarm needs permission;
+ * without it the alarm still happens but may drift by minutes, which the UI should say rather
+ * than let someone believe a 6am alarm is precise when it is not.
+ */
+export function scheduleAlarm(input: {
+  id: string
+  at: number
+  title: string
+  body?: string
+  soundUri?: string
+  durationSeconds?: number
+  vibrate?: boolean
+}): boolean {
+  if (!native) return false
+  try {
+    return native.schedule(
+      input.id,
+      input.at,
+      input.title,
+      input.body ?? null,
+      input.soundUri ?? null,
+      input.durationSeconds ?? 60,
+      input.vibrate ?? true,
+    )
+  } catch {
+    return false
+  }
+}
+
+export function cancelScheduledAlarm(id: string): void {
+  try {
+    native?.cancelScheduled(id)
+  } catch {
+    // Never scheduled, or no module.
+  }
+}
+
+/** Whether alarms will fire at the exact minute, or merely near it. */
+export function canScheduleExactAlarms(): boolean {
+  try {
+    return native?.canScheduleExact() ?? false
+  } catch {
+    return false
+  }
+}
+
+export function openExactAlarmSettings(): void {
+  try {
+    native?.openExactAlarmSettings()
+  } catch {
+    // Below Android 12 there is no such screen; the permission is implicit.
   }
 }

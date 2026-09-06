@@ -1,4 +1,7 @@
-import type { Checklist, ChecklistRun, HHMM, Place, Reminder, Routine, Weekday } from '@/lib/types'
+import type {
+  ActivityEvent, Checklist, ChecklistRun, HHMM, Place, Reminder, Routine, Weekday,
+} from '@/lib/types'
+import { alreadyThere, currentPlace, type Presence } from '@/lib/presence'
 import { localDateKey, minutesOfDay, parseHHMM, weekdayOf } from '@/lib/time'
 
 /**
@@ -29,6 +32,13 @@ export interface TodayEntry {
   source: 'reminder' | 'routine'
   /** Present only when this came from a day plan. */
   routine?: Routine
+  /**
+   * The user is already at the place this entry was about going to.
+   *
+   * Today used to keep saying "leave for temple" while the user was standing in it — the app
+   * failing at the one thing it exists for, which is knowing what is happening now.
+   */
+  arrived?: boolean
   /** Absolute local time this routine starts today. */
   startsAtMinutes: number
   status: 'past' | 'now' | 'next' | 'later'
@@ -46,6 +56,8 @@ export interface TodayChecklist {
 }
 
 export interface TodayModel {
+  /** Where the user is, when the app knows. Drives what Today says rather than assumes. */
+  presence: Presence | null
   phase: DayPhase
   greeting: 'goodMorning' | 'goodAfternoon' | 'goodEvening' | 'goodNight'
   entries: TodayEntry[]
@@ -104,8 +116,11 @@ export function buildToday(input: {
   places: Place[]
   checklists: Checklist[]
   runs: ChecklistRun[]
+  /** Arrivals and departures already recorded by the geofence. */
+  activity?: ActivityEvent[]
 }): TodayModel {
-  const { now, routines, reminders = [], places, checklists, runs } = input
+  const { now, routines, reminders = [], places, checklists, runs, activity = [] } = input
+  const presence = currentPlace(activity, places, now.getTime())
   const today = weekdayOf(now)
   const nowMinutes = minutesOfDay(now)
   const periodKey = localDateKey(now)
@@ -133,6 +148,7 @@ export function buildToday(input: {
         status: statusFor(startsAtMinutes, endMinutes ?? startsAtMinutes + DEFAULT_WINDOW_MINUTES),
         origin: r.originPlaceId ? placeById.get(r.originPlaceId) : undefined,
         destination: r.destinationPlaceId ? placeById.get(r.destinationPlaceId) : undefined,
+        arrived: alreadyThere(presence, r.destinationPlaceId),
       }
     })
 
@@ -177,8 +193,13 @@ export function buildToday(input: {
 
   const current = entries.find((e) => e.status === 'now') ?? null
 
-  // The soonest upcoming entry is promoted to "next" so the hero card has something to show.
-  const upcoming = entries.find((e) => e.status === 'later') ?? null
+  /**
+   * "Next" skips anything the user has already arrived at.
+   *
+   * Otherwise the hero card urges someone to set off for a place they are standing in, which
+   * reads as the app not knowing where they are — and it does know.
+   */
+  const upcoming = entries.find((e) => e.status === 'later' && !e.arrived) ?? null
   if (upcoming) upcoming.status = 'next'
 
   /**
@@ -219,6 +240,7 @@ export function buildToday(input: {
   const phase = phaseOf(now)
 
   return {
+    presence,
     phase,
     greeting: greetingOf(phase),
     entries,

@@ -1,6 +1,7 @@
 import * as repo from '@/lib/db/repo'
 import { getDb } from '@/lib/db/sqlite'
 import { resyncAll } from './apply'
+import { resyncAlarms } from './applyReminder'
 import { syncGeofences } from '@/lib/location/geofence'
 import { localDateKey } from '@/lib/time'
 
@@ -14,6 +15,7 @@ import { localDateKey } from '@/lib/time'
  */
 
 export interface BootReport {
+  alarmsScheduled: number
   scheduled: number
   skipped: number
   notificationsAllowed: boolean
@@ -27,8 +29,12 @@ export async function boot(): Promise<BootReport> {
   prune()
 
   const [schedule, geofence] = await Promise.all([resyncAll(), syncGeofences()])
+  // Alarms are laid out only two weeks ahead, so every start extends the horizon — and this
+  // is also what restores them after a reboot, when AlarmManager forgets everything.
+  const alarms = resyncAlarms()
 
   return {
+    alarmsScheduled: alarms.scheduled,
     scheduled: schedule.scheduled,
     skipped: schedule.skipped,
     notificationsAllowed: schedule.notificationsAllowed,

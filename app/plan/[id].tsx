@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react'
-import { View, StyleSheet, TextInput } from 'react-native'
+import { View, StyleSheet, TextInput , Alert } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { Screen } from '@/components/ui/Screen'
 import { DetailHeader } from '@/components/ui/DetailHeader'
@@ -297,10 +297,25 @@ export default function PlanEditor() {
           full
           style={{ marginTop: space['3xl'] }}
           onPress={() => {
-            void removeRoutineAndRules(existing.id).then(() => {
-              refresh()
-              router.back()
-            })
+            // Nothing the user made is destroyed without being asked. A Remove button
+            // that acts on the first tap is how people lose things they meant to keep.
+            Alert.alert(
+              `Remove ${existing.name}?`,
+              'This day plan and its reminders will be removed.',
+              [
+                { text: S.action.goBack, style: 'cancel' },
+                {
+                  text: S.action.remove,
+                  style: 'destructive',
+                  onPress: () => {
+                  void removeRoutineAndRules(existing.id).then(() => {
+                    refresh()
+                    router.back()
+                  })
+                  },
+                },
+              ],
+            )
           }}
         />
       ) : null}

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { View, StyleSheet } from 'react-native'
+import { View, StyleSheet, Alert } from 'react-native'
 import Animated, { FadeIn } from 'react-native-reanimated'
 import { Screen } from '@/components/ui/Screen'
 import { DetailHeader } from '@/components/ui/DetailHeader'
@@ -99,10 +99,23 @@ export default function StorageScreen() {
         variant="secondary"
         full
         onPress={() => {
-          activityRepo.clear()
-          const s = settingsRepo.read()
-          activityRepo.prune(s.historyMaxEvents, s.historyMaxAgeDays)
-          load()
+          Alert.alert(
+            'Clear what happened?',
+            'The record of what DailyFlow has done will be removed. Your reminders, places and lists are not affected.',
+            [
+              { text: S.action.goBack, style: 'cancel' },
+              {
+                text: S.action.remove,
+                style: 'destructive',
+                onPress: () => {
+                  activityRepo.clear()
+                  const settings = settingsRepo.read()
+                  activityRepo.prune(settings.historyMaxEvents, settings.historyMaxAgeDays)
+                  load()
+                },
+              },
+            ],
+          )
         }}
       />
     </Screen>

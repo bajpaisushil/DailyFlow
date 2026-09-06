@@ -3,6 +3,7 @@ import * as repo from '@/lib/db/repo'
 import { compileReminder, staleReminderAutomationIds } from './compileReminder'
 import { resyncAll } from './apply'
 import { syncGeofences } from '@/lib/location/geofence'
+import { currentAlarmIds, syncAlarms } from '@/lib/notify/alarmSchedule'
 
 /**
  * Saving a reminder, and turning it into something the phone will actually do.
@@ -17,6 +18,10 @@ export interface ReminderResult {
   skipped: number
   notificationsAllowed: boolean
   geofencesWatched: number
+  /** Full-screen alarms handed to AlarmManager. */
+  alarmsScheduled: number
+  /** False when Android will not grant exact alarms, so they may drift by minutes. */
+  alarmsExact: boolean
 }
 
 export async function applyReminder(reminder: Reminder): Promise<ReminderResult> {
@@ -33,7 +38,30 @@ export async function applyReminder(reminder: Reminder): Promise<ReminderResult>
   }
 
   const [schedule, geofence] = await Promise.all([resyncAll(), syncGeofences()])
-  return { ...schedule, geofencesWatched: geofence.watched }
+  const alarms = resyncAlarms()
+
+  return {
+    ...schedule,
+    geofencesWatched: geofence.watched,
+    alarmsScheduled: alarms.scheduled,
+    alarmsExact: alarms.exact,
+  }
+}
+
+/**
+ * Re-hand every full-screen alarm to AlarmManager.
+ *
+ * Separate from the notification schedule on purpose: a timed alarm cannot go through
+ * expo-notifications at all. Taking over the screen needs a full-screen intent it does not
+ * expose, and our JavaScript is not running when the moment arrives — so an "alarm" scheduled
+ * that way could only ever have been a louder banner.
+ */
+export function resyncAlarms(): { scheduled: number; exact: boolean } {
+  const reminders = repo.reminders.all()
+  // Cancel by the ids we would have created, since AlarmManager cannot be enumerated.
+  const previous = currentAlarmIds(reminders)
+  const result = syncAlarms(reminders, previous)
+  return { scheduled: result.scheduled, exact: result.exact }
 }
 
 /** Removes a reminder and everything it generated. */
@@ -43,4 +71,5 @@ export async function removeReminder(reminderId: string): Promise<void> {
   }
   repo.reminders.remove(reminderId)
   await Promise.all([resyncAll(), syncGeofences()])
+  resyncAlarms()
 }

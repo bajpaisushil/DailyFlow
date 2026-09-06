@@ -8,6 +8,11 @@
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
   <uses-permission android:name="android.permission.VIBRATE" />
+  <!-- setAlarmClock is the only variant Android treats as a user-visible alarm, so it
+       survives Doze and battery optimisation. It needs one of these. -->
+  <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+  <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+  <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
   <application>
     <!-- singleTask so a second alarm reuses the same screen instead of stacking; excluded
@@ -21,6 +26,10 @@
       android:turnScreenOn="true"
       android:screenOrientation="portrait"
       android:theme="@style/Theme.AppCompat.NoActionBar" />
+
+    <receiver
+      android:name="app.dailyflow.alarm.AlarmReceiver"
+      android:exported="false" />
 
     <service
       android:name="app.dailyflow.alarm.AlarmService"
