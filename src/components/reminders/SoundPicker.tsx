@@ -30,7 +30,10 @@ function ownSoundPlaysWhenClosed(): boolean {
 function alarmWouldPlayOwnSound(): boolean {
   return Platform.OS === 'android'
 }
-import { nowPlaying, onPlaybackChange, playSound, previewTone, stopSound } from '@/lib/notify/player'
+import {
+  onPlaybackChange, playbackState, playSound, previewTone, stopSound,
+  type PlaybackState,
+} from '@/lib/notify/player'
 import { radius, space } from '@/theme/tokens'
 import { useColors } from '@/theme/ThemeProvider'
 
@@ -82,8 +85,11 @@ export function SoundPicker({
    * there was no way to stop it except leaving the screen. Subscribing means the icon also
    * returns to Play by itself when a short tone finishes.
    */
-  const [playing, setPlaying] = useState<string | null>(nowPlaying())
-  useEffect(() => onPlaybackChange(setPlaying), [])
+  const [playback, setPlayback] = useState<PlaybackState>(playbackState())
+  useEffect(() => onPlaybackChange(setPlayback), [])
+
+  const playing = playback.playing
+  const paused = playback.paused
 
   // Never leave a sound running after the user navigates away.
   useEffect(() => () => void stopSound(), [])
@@ -149,10 +155,15 @@ export function SoundPicker({
                   {tone.label}
                 </Text>
                 <Text variant="caption" tone="muted">
-                  {playing === tone.id ? 'Playing — tap to stop' : tone.description}
+                  {playing === tone.id
+                    ? 'Playing — tap to pause'
+                    : paused === tone.id
+                      ? 'Paused — tap to carry on'
+                      : tone.description}
                 </Text>
               </View>
-              {playing === tone.id ? <Icon name="close" size={19} color={c.bad} /> : null}
+              {playing === tone.id ? <Icon name="pause" size={19} color={c.accent} /> : null}
+              {paused === tone.id ? <Icon name="play" size={19} color={c.accent} /> : null}
             </PressableScale>
           )
         })}
@@ -170,15 +181,34 @@ export function SoundPicker({
             <PressableScale
               onPress={() => void playSound(soundFile)}
               accessibilityRole="button"
-              accessibilityLabel={playing === soundFile ? 'Stop' : 'Listen'}
+              accessibilityLabel={
+                playing === soundFile
+                  ? 'Pause'
+                  : paused === soundFile
+                    ? 'Carry on'
+                    : 'Listen'
+              }
               style={styles.iconBtn}
             >
               <Icon
-                name={playing === soundFile ? 'close' : 'play'}
+                name={playing === soundFile ? 'pause' : 'play'}
                 size={20}
-                color={playing === soundFile ? c.bad : c.accent}
+                color={c.accent}
               />
             </PressableScale>
+
+            {/* A separate stop, shown only while there is something to stop. Pause and cancel
+                were the same control before, so pausing lost your place in the recording. */}
+            {playing === soundFile || paused === soundFile ? (
+              <PressableScale
+                onPress={() => void stopSound()}
+                accessibilityRole="button"
+                accessibilityLabel="Stop listening"
+                style={styles.iconBtn}
+              >
+                <Icon name="stop" size={18} color={c.inkFaint} />
+              </PressableScale>
+            ) : null}
             <PressableScale
               onPress={() => {
                 void stopSound()
@@ -216,13 +246,19 @@ export function SoundPicker({
                     <PressableScale
                       onPress={() => void playSound(item.fileName)}
                       accessibilityRole="button"
-                      accessibilityLabel={`Listen to ${item.label}`}
+                      accessibilityLabel={
+                      playing === item.fileName
+                        ? `Pause ${item.label}`
+                        : paused === item.fileName
+                          ? `Carry on ${item.label}`
+                          : `Listen to ${item.label}`
+                    }
                       style={styles.iconBtn}
                     >
                       <Icon
-                        name={playing === item.fileName ? 'close' : 'play'}
+                        name={playing === item.fileName ? 'pause' : 'play'}
                         size={18}
-                        color={playing === item.fileName ? c.bad : c.accent}
+                        color={c.accent}
                       />
                     </PressableScale>
                   </PressableScale>

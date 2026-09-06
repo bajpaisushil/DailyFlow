@@ -2,6 +2,8 @@ import {
   alarmModuleAvailable as moduleAvailable,
   canShowFullScreenAlarm,
   openFullScreenAlarmSettings,
+  onAlarmRingingChange as onRingingNative,
+  isAlarmRinging as isRingingNative,
   ringAlarm as ringNative,
   stopAlarm as stopNative,
   isAlarmRinging,
@@ -52,4 +54,14 @@ export function ringAlarm(request: AlarmRequest): boolean {
 
 export function stopAlarm(): void {
   stopNative()
+}
+
+/** Whether an alarm is sounding right now. */
+export function alarmIsRinging(): boolean {
+  return isRingingNative()
+}
+
+/** Told when an alarm starts or stops sounding. Returns an unsubscribe function. */
+export function onAlarmRingingChange(listener: (ringing: boolean) => void): () => void {
+  return onRingingNative(listener)
 }

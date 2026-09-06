@@ -283,3 +283,46 @@ describe('courses on Today — regression from the pre-release audit', () => {
     assert.equal(on(course()).entries.length, 1)
   })
 })
+
+/**
+ * How late something is.
+ *
+ * The bug: an entry stayed in the "Now" slot for its whole relevance window — thirty minutes
+ * for a reminder, ninety for a routine — and the label said "Now" for all of it. Ten minutes
+ * after a reminder was due, the screen still claimed it was happening now, which is the one
+ * thing on this screen a person checks against their own sense of the time.
+ */
+describe('minutesLate', () => {
+  const remindAt = (time: string): Reminder => ({
+    id: 'rem1', title: 'Take my medicine', icon: 'pills', enabled: true,
+    times: [time], days: [] as Weekday[], placeTriggers: [], leadMinutes: [0],
+    priority: 'normal', alertStyle: 'notification', sound: true, vibrate: true,
+    createdAt: 0, updatedAt: 0,
+  })
+
+  const build = (h: number, m: number, time: string) =>
+    buildToday({
+      now: now(h, m), routines: [], reminders: [remindAt(time)],
+      places: [], checklists: [], runs: [],
+    })
+
+  it('is zero for something still ahead', () => {
+    assert.equal(build(7, 0, '08:00').entries[0]?.minutesLate, 0)
+  })
+
+  it('counts the minutes since it was due', () => {
+    const entry = build(8, 10, '08:00').entries[0]
+    assert.equal(entry?.minutesLate, 10)
+    // It stays in the slot because it is still worth doing — but it is not "now" any more,
+    // and the label is driven by this number rather than by the status.
+    assert.equal(entry?.status, 'now')
+  })
+
+  it('is zero exactly on the minute, so it reads as "Now" and not "0 minutes ago"', () => {
+    assert.equal(build(8, 0, '08:00').entries[0]?.minutesLate, 0)
+  })
+
+  it('never goes negative', () => {
+    assert.ok((build(6, 0, '23:00').entries[0]?.minutesLate ?? -1) >= 0)
+  })
+})

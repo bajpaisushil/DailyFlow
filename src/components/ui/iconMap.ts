@@ -72,6 +72,10 @@ export const MAP = {
   calendar: { set: 'ion', name: 'calendar' },
   repeat: { set: 'ion', name: 'repeat' },
   play: { set: 'ion', name: 'play' },
+  // Pause and stop are distinct on purpose: pausing keeps your place in a long recording,
+  // stopping gives it up. One control doing both is what made the preview unusable.
+  pause: { set: 'ion', name: 'pause' },
+  stop: { set: 'ion', name: 'stop' },
   arrive: { set: 'mc', name: 'map-marker-check' },
   leave: { set: 'mc', name: 'map-marker-remove' },
   battery: { set: 'mc', name: 'battery-30' },

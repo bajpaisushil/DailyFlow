@@ -68,9 +68,85 @@ class AlarmService : Service() {
     private const val CHANNEL_ID = "dailyflow-alarm-service"
     private const val NOTIFICATION_ID = 0x0A1A
 
+    /** AlarmReceiver's full-screen notification. Cleared when the alarm is silenced. */
+    const val FULL_SCREEN_NOTIFICATION_ID = 0x0A1B
+
     @Volatile
     var isRinging: Boolean = false
       private set
+
+    /**
+     * The running service, if there is one.
+     *
+     * Held so an alarm can be silenced by calling it DIRECTLY rather than by starting a
+     * service with ACTION_STOP. Starting a service is precisely what Android forbids an app in
+     * the background from doing — and someone tapping Stop in the notification shade is always
+     * in the background. Routing the stop through startService meant the stop could be refused
+     * at exactly the moment it was needed.
+     */
+    @Volatile
+    private var instance: AlarmService? = null
+
+    /** Broadcast when ringing ends, so the alarm screen can close itself. */
+    const val ACTION_STOPPED = "app.dailyflow.alarm.STOPPED"
+
+    /**
+     * Silence whatever is ringing, from any state, foreground or background.
+     *
+     * Never throws: this is the last line of defence between a user and an alarm they cannot
+     * turn off, and it must not be the thing that fails.
+     */
+    fun stopNow(context: Context) {
+      val live = instance
+      if (live != null) {
+        try {
+          live.stopEverything()
+          return
+        } catch (_: Exception) {
+          // Fall through and try the Intent route rather than leave it ringing.
+        }
+      }
+      try {
+        context.startService(
+          Intent(context, AlarmService::class.java).apply { action = ACTION_STOP },
+        )
+      } catch (_: Exception) {
+        // Nothing is running, or the start was refused. Either way there is nothing left to do.
+      }
+      // Clear anything the alarm left in the shade, so a silenced alarm does not look live.
+      try {
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.cancel(NOTIFICATION_ID)
+        manager.cancel(FULL_SCREEN_NOTIFICATION_ID)
+      } catch (_: Exception) {
+      }
+    }
+
+    /**
+     * Told whenever ringing starts or stops, so the app can show a Stop button while it is
+     * open. Callbacks rather than a poll: asking a native module a question every second, for
+     * the rare seconds an alarm is actually ringing, is the kind of cost this app avoids.
+     */
+    private val ringingListeners = mutableListOf<(Boolean) -> Unit>()
+
+    fun addRingingListener(listener: (Boolean) -> Unit) {
+      synchronized(ringingListeners) { ringingListeners.add(listener) }
+    }
+
+    fun removeRingingListener(listener: (Boolean) -> Unit) {
+      synchronized(ringingListeners) { ringingListeners.remove(listener) }
+    }
+
+    private fun publishRinging(value: Boolean) {
+      val snapshot = synchronized(ringingListeners) { ringingListeners.toList() }
+      for (listener in snapshot) {
+        try {
+          listener(value)
+        } catch (_: Exception) {
+          // A listener that throws must not stop the alarm from being stopped.
+        }
+      }
+    }
   }
 
   private var player: MediaPlayer? = null
@@ -79,6 +155,11 @@ class AlarmService : Service() {
   private val handler = Handler(Looper.getMainLooper())
   private var stopRunnable: Runnable? = null
   private var style: String = STYLE_ALARM
+
+  override fun onCreate() {
+    super.onCreate()
+    instance = this
+  }
 
   override fun onBind(intent: Intent?): IBinder? = null
 
@@ -90,7 +171,17 @@ class AlarmService : Service() {
       }
       else -> start(intent)
     }
-    return START_STICKY
+    /**
+     * START_NOT_STICKY, deliberately.
+     *
+     * START_STICKY asks Android to recreate the service after it is killed — with a NULL
+     * Intent. That would land in `start(null)`, which falls back to every default: the system
+     * alarm tone, the title "Alarm", a fresh 60-second timer. An alarm the user had already
+     * silenced could come back by itself, sounding like nothing they set. A missed alarm is
+     * bad; one that resurrects with no explanation is worse, and it is the exact shape of "it
+     * keeps sounding and I cannot stop it".
+     */
+    return START_NOT_STICKY
   }
 
   private fun start(intent: Intent?) {
@@ -115,6 +206,7 @@ class AlarmService : Service() {
     // Only a real alarm is "ringing": that flag drives the stop button and the alarm screen.
     // A reminder playing its own sound is an ordinary notification that happens to be audible.
     isRinging = !sounding
+    publishRinging(isRinging)
 
     // Always stops itself. A ringing alarm nobody silences must not run the battery flat.
     stopRunnable?.let { handler.removeCallbacks(it) }
@@ -195,7 +287,24 @@ class AlarmService : Service() {
       .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
       .setContentIntent(pending)
       .setOngoing(true)
+      // A Stop the user can reach without opening anything. This notification is visible
+      // whenever the alarm is sounding, including when the phone is in use and the alarm
+      // screen was never shown.
+      .addAction(stopAction())
       .build()
+  }
+
+  /** The Stop button attached to every notification an alarm puts on screen. */
+  private fun stopAction(): Notification.Action {
+    val builder = Notification.Action.Builder(
+      android.graphics.drawable.Icon.createWithResource(
+        this,
+        android.R.drawable.ic_menu_close_clear_cancel,
+      ),
+      "Stop",
+      AlarmStopReceiver.pendingIntent(this),
+    )
+    return builder.build()
   }
 
   private fun startSound(soundUri: String?) {
@@ -296,6 +405,7 @@ class AlarmService : Service() {
   }
 
   private fun stopEverything() {
+    val wasRinging = isRinging
     isRinging = false
     stopRunnable?.let { handler.removeCallbacks(it) }
     stopRunnable = null
@@ -310,11 +420,31 @@ class AlarmService : Service() {
     try { if (wakeLock?.isHeld == true) wakeLock?.release() } catch (_: Exception) {}
     wakeLock = null
 
+    /**
+     * Clear the full-screen notification too. It is posted by AlarmReceiver, not by this
+     * service, so stopForeground does not touch it — a silenced alarm would otherwise leave a
+     * live-looking alarm sitting in the shade.
+     */
+    try {
+      (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+        .cancel(FULL_SCREEN_NOTIFICATION_ID)
+    } catch (_: Exception) {
+    }
+
     stopForeground(STOP_FOREGROUND_REMOVE)
     stopSelf()
+
+    if (wasRinging) publishRinging(false)
+    // Tells the alarm screen to close, so a silenced alarm does not leave a dead Stop button
+    // sitting over the lock screen.
+    try {
+      sendBroadcast(Intent(ACTION_STOPPED).setPackage(packageName))
+    } catch (_: Exception) {
+    }
   }
 
   override fun onDestroy() {
+    instance = null
     stopEverything()
     super.onDestroy()
   }

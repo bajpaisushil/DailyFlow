@@ -31,6 +31,13 @@
       android:name="app.dailyflow.alarm.AlarmReceiver"
       android:exported="false" />
 
+    <!-- The Stop button on every alarm notification. A broadcast rather than a service start,
+         because starting a service is what Android refuses to an app in the background — and
+         someone silencing an alarm from the notification shade is always in the background. -->
+    <receiver
+      android:name="app.dailyflow.alarm.AlarmStopReceiver"
+      android:exported="false" />
+
     <service
       android:name="app.dailyflow.alarm.AlarmService"
       android:exported="false"

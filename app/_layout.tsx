@@ -13,6 +13,7 @@ import { ThemeProvider, useTheme } from '@/theme/ThemeProvider'
 import { seedIfFirstRun } from '@/lib/data/seed'
 import { getDb } from '@/lib/db/sqlite'
 import { boot } from '@/lib/engine/boot'
+import { RingingBanner } from '@/components/alarm/RingingBanner'
 
 // The database opens synchronously, so the first screen renders with real data already in
 // hand. There is no loading spinner anywhere in this app's startup path.
@@ -46,6 +47,10 @@ function Shell() {
         <Stack.Screen name="plan/[id]" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         <Stack.Screen name="list/[id]" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
       </Stack>
+
+      {/* Above the navigator, so a ringing alarm can be stopped from any screen without
+          having to navigate anywhere to do it. */}
+      <RingingBanner />
     </>
   )
 }

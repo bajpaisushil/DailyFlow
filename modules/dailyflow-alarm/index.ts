@@ -22,7 +22,23 @@ import { Platform } from 'react-native'
  */
 export type FiringStyle = 'alarm' | 'sound'
 
-interface AlarmModule extends NativeModule {
+/**
+ * The events the native side pushes up.
+ *
+ * `addListener` is redeclared below rather than inherited: expo's NativeModule declaration
+ * reaches EventEmitter through a type-only import, so its members do not survive into an
+ * interface that extends it. Naming the one event we use keeps the call site typed.
+ */
+type AlarmEvents = {
+  onRingingChange: (event: { ringing: boolean }) => void
+}
+
+interface AlarmModule extends NativeModule<AlarmEvents> {
+  addListener<E extends keyof AlarmEvents>(
+    event: E,
+    listener: AlarmEvents[E],
+  ): { remove(): void }
+
   canShowFullScreen(): boolean
   openFullScreenSettings(): boolean
   isRinging(): boolean
@@ -78,6 +94,35 @@ export function openFullScreenAlarmSettings(): void {
   } catch {
     // The settings page does not exist below Android 14, which is fine: there the permission
     // is granted automatically.
+  }
+}
+
+/**
+ * Subscribe to whether an alarm is sounding.
+ *
+ * The app needs this to offer a Stop while it is open. Until now it offered none: the only
+ * Stop in existence was on the full-screen alarm screen, which Android shows solely when the
+ * phone is locked — so an alarm that went off while someone was using their phone could not be
+ * silenced from inside DailyFlow at all.
+ *
+ * Returns an unsubscribe function. Safe where the module does not exist: the callback simply
+ * never fires.
+ */
+export function onAlarmRingingChange(listener: (ringing: boolean) => void): () => void {
+  if (!native) return () => {}
+  try {
+    const subscription = native.addListener('onRingingChange', (event: { ringing: boolean }) => {
+      listener(event?.ringing === true)
+    })
+    return () => {
+      try {
+        subscription.remove()
+      } catch {
+        // Already gone.
+      }
+    }
+  } catch {
+    return () => {}
   }
 }
 

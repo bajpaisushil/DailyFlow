@@ -19,7 +19,7 @@ import { useClock } from '@/hooks/useClock'
 import { buildToday } from '@/lib/today'
 import { markOnboarded } from '@/lib/data/seed'
 import { EXPO_GO_LIMITATION } from '@/lib/runtime'
-import { formatLongDate, formatTime, minutesOfDay, toHHMM } from '@/lib/time'
+import { formatLongDate, formatTime, humanDelta, minutesOfDay, toHHMM } from '@/lib/time'
 import { space, radius } from '@/theme/tokens'
 import { useColors } from '@/theme/ThemeProvider'
 import { S } from '@/lib/strings'
@@ -129,8 +129,17 @@ export default function TodayScreen() {
       {focus ? (
         <Animated.View entering={FadeInDown.delay(60).springify().damping(18).stiffness(140)}>
           <Card tone="hero" style={{ marginBottom: space.lg }}>
+            {/*
+              Says how late it is rather than insisting it is happening now. An entry stays in
+              this slot for the whole window it remains worth doing — half an hour for a
+              reminder — and calling all of that "Now" was plainly untrue ten minutes in.
+            */}
             <Text variant="label" style={{ color: c.onAccent, opacity: 0.78 }}>
-              {focus.status === 'now' ? S.today.now : S.today.next}
+              {focus.status !== 'now'
+                ? S.today.next
+                : focus.minutesLate < 2
+                  ? S.today.now
+                  : `Due ${humanDelta(now.getTime(), now.getTime() - focus.minutesLate * 60_000)}`}
             </Text>
 
             <View style={styles.heroRow}>

@@ -43,6 +43,15 @@ export interface TodayEntry {
   /** Absolute local time this routine starts today. */
   startsAtMinutes: number
   status: 'past' | 'now' | 'next' | 'later'
+  /**
+   * Minutes since this was due. 0 while it is still ahead.
+   *
+   * Exists because "Now" was shown for the WHOLE window an entry stayed relevant — thirty
+   * minutes for a reminder, ninety for a routine. Ten minutes after a reminder was due the
+   * screen still insisted it was happening now, which is simply false, and it is the one
+   * number on this screen a person checks against their own sense of the time.
+   */
+  minutesLate: number
   origin?: Place
   destination?: Place
 }
@@ -134,6 +143,10 @@ export function buildToday(input: {
         ? 'past'
         : 'later'
 
+  /** How long ago this was due. Never negative: something upcoming is not late. */
+  const lateBy = (startsAtMinutes: number): number =>
+    Math.max(0, nowMinutes - startsAtMinutes)
+
   const fromRoutines: TodayEntry[] = routines
     .filter((r) => r.enabled && r.days.includes(today))
     .map((r) => {
@@ -147,6 +160,7 @@ export function buildToday(input: {
         routine: r,
         startsAtMinutes,
         status: statusFor(startsAtMinutes, endMinutes ?? startsAtMinutes + DEFAULT_WINDOW_MINUTES),
+        minutesLate: lateBy(startsAtMinutes),
         origin: r.originPlaceId ? placeById.get(r.originPlaceId) : undefined,
         destination: r.destinationPlaceId ? placeById.get(r.destinationPlaceId) : undefined,
         arrived: alreadyThere(presence, r.destinationPlaceId),
@@ -185,6 +199,7 @@ export function buildToday(input: {
           source: 'reminder' as const,
           startsAtMinutes,
           status: statusFor(startsAtMinutes, startsAtMinutes + 30),
+          minutesLate: lateBy(startsAtMinutes),
         }]
       }),
     )

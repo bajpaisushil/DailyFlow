@@ -52,8 +52,32 @@ class DailyFlowAlarmModule : Module() {
     )
   }
 
+  /**
+   * Pushed to JavaScript when ringing starts or stops.
+   *
+   * An event rather than a poll: the app needs to show a Stop button the instant an alarm
+   * begins, and asking a native module a question every second — for the rare seconds an alarm
+   * is actually sounding — is exactly the kind of idle cost this app is built to avoid.
+   */
+  private val ringingListener: (Boolean) -> Unit = { ringing ->
+    try {
+      sendEvent(EVENT_RINGING, mapOf("ringing" to ringing))
+    } catch (_: Exception) {
+      // The JS context can go away between the alarm firing and this being delivered.
+    }
+  }
+
+  companion object {
+    private const val EVENT_RINGING = "onRingingChange"
+  }
+
   override fun definition() = ModuleDefinition {
     Name("DailyFlowAlarm")
+
+    Events(EVENT_RINGING)
+
+    OnCreate { AlarmService.addRingingListener(ringingListener) }
+    OnDestroy { AlarmService.removeRingingListener(ringingListener) }
 
     /**
      * Whether a full-screen alarm can actually appear.
@@ -191,9 +215,9 @@ class DailyFlowAlarmModule : Module() {
     }
 
     Function("stop") {
-      context.startService(
-        Intent(context, AlarmService::class.java).apply { action = AlarmService.ACTION_STOP },
-      )
+      // stopNow works from any state and never throws. The previous startService could be
+      // refused outright when the app was in the background.
+      AlarmService.stopNow(context)
       true
     }
   }

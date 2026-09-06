@@ -22,21 +22,86 @@ let configured = false
  * out was to leave the screen.
  */
 let playingId: string | null = null
-const listeners = new Set<(id: string | null) => void>()
+
+/**
+ * Paused, as distinct from stopped.
+ *
+ * Previously there was no such distinction: the only control destroyed the player, so the one
+ * button in the picker was really "cancel" — pressing it again started the sound over from the
+ * beginning. Someone auditioning a two-minute recording to find the part that matters could
+ * never pick up where they left off.
+ */
+let pausedId: string | null = null
+
+const listeners = new Set<(state: PlaybackState) => void>()
+
+export interface PlaybackState {
+  /** What is making a noise right now, if anything. */
+  playing: string | null
+  /** What is loaded and part-way through, waiting to be resumed. */
+  paused: string | null
+}
+
+function publish(): void {
+  const state: PlaybackState = { playing: playingId, paused: pausedId }
+  for (const listener of listeners) listener(state)
+}
 
 function setPlaying(id: string | null): void {
   playingId = id
-  for (const listener of listeners) listener(id)
+  if (id) pausedId = null
+  publish()
 }
 
-/** Subscribe to what is playing. Returns an unsubscribe function. */
-export function onPlaybackChange(listener: (id: string | null) => void): () => void {
+/** Subscribe to what is playing or paused. Returns an unsubscribe function. */
+export function onPlaybackChange(listener: (state: PlaybackState) => void): () => void {
   listeners.add(listener)
   return () => void listeners.delete(listener)
 }
 
 export function nowPlaying(): string | null {
   return playingId
+}
+
+export function playbackState(): PlaybackState {
+  return { playing: playingId, paused: pausedId }
+}
+
+/**
+ * Pause, keeping the player and its position.
+ *
+ * The player is deliberately NOT released: releasing it is what turned pause into stop.
+ */
+export function pauseSound(): void {
+  const player = current
+  if (!player || !playingId) return
+  try {
+    player.pause()
+    pausedId = playingId
+    playingId = null
+    publish()
+  } catch {
+    // The player has already gone; fall back to a clean stop so the UI is not left lying.
+    void stopSound()
+  }
+}
+
+/** Resume from where it was paused. Returns false when there is nothing to resume. */
+export function resumeSound(): boolean {
+  const player = current
+  if (!player || !pausedId) return false
+  try {
+    const id = pausedId
+    player.play()
+    pausedId = null
+    playingId = id
+    publish()
+    watchForEnd(player, id)
+    return true
+  } catch {
+    void stopSound()
+    return false
+  }
 }
 
 async function configureOnce(): Promise<void> {
@@ -84,11 +149,12 @@ export async function previewTone(toneId: string): Promise<boolean> {
   const asset = BUNDLED[toneId]
   if (!asset) return false
 
-  // Tapping the tone that is already playing stops it, rather than restarting it.
+  // Tapping the tone that is already playing pauses it, rather than restarting it.
   if (playingId === toneId) {
-    await stopSound()
+    pauseSound()
     return false
   }
+  if (pausedId === toneId && resumeSound()) return true
 
   await configureOnce()
   await stopSound()
@@ -124,6 +190,7 @@ function watchForEnd(player: AudioPlayer, id: string): void {
         clearInterval(timer)
         if (playingId === id) {
           current = null
+          pausedId = null
           setPlaying(null)
         }
       }
@@ -138,11 +205,13 @@ export async function playSound(fileName: string | undefined, options: PlayOptio
   const uri = soundUri(fileName)
   if (!uri) return false
 
-  // Tapping the sound that is already playing stops it.
+  // Tapping the sound that is already playing pauses it, keeping its position.
   if (playingId === fileName) {
-    await stopSound()
+    pauseSound()
     return false
   }
+  // Tapping the one that is paused picks up exactly where it left off.
+  if (pausedId === fileName && resumeSound()) return true
 
   await configureOnce()
   await stopSound()
@@ -171,6 +240,7 @@ export async function playSound(fileName: string | undefined, options: PlayOptio
 export async function stopSound(): Promise<void> {
   const player = current
   current = null
+  pausedId = null
   setPlaying(null)
   if (!player) return
   try {
