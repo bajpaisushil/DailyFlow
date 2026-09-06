@@ -76,6 +76,19 @@ class AlarmService : Service() {
       private set
 
     /**
+     * True while a reminder's OWN sound is playing.
+     *
+     * Separate from isRinging, which means "an alarm has taken over the screen". Sound mode had
+     * neither: no alarm screen, no banner, and its single Stop lived on a notification that is
+     * swipe-dismissible and simply absent if the user has denied notifications or blocked the
+     * channel. A 50 MB recording could then play for fifteen minutes with no control anywhere
+     * on the phone. The banner now offers a Stop for this too.
+     */
+    @Volatile
+    var isSounding: Boolean = false
+      private set
+
+    /**
      * The running service, if there is one.
      *
      * Held so an alarm can be silenced by calling it DIRECTLY rather than by starting a
@@ -180,6 +193,13 @@ class AlarmService : Service() {
    */
   private var backstop: Runnable? = null
 
+  /** What is currently ringing, so the notification can hand it to the alarm screen. */
+  private var ringingTitle: String = "Alarm"
+  private var ringingBody: String? = null
+  private var ringingSoundUri: String? = null
+  private var ringingDuration: Int = 60
+  private var ringingVibrate: Boolean = true
+
   override fun onCreate() {
     super.onCreate()
     instance = this
@@ -250,12 +270,19 @@ class AlarmService : Service() {
     // an unreleased player is one nothing can reach.
     releaseAlarmRing()
 
+    ringingTitle = title
+    ringingBody = body
+    ringingSoundUri = soundUri
+    ringingDuration = duration
+    ringingVibrate = vibrate
+
     startForeground(NOTIFICATION_ID, buildNotification(title, body))
     acquireWakeLock(duration)
     alarmPlayer = openPlayer(soundUri, alarm = true, loop = true, onComplete = null)
     if (vibrate) startVibration(insistent = true)
 
     isRinging = true
+    isSounding = false
     publishRinging(true)
 
     val runnable = Runnable { stopEverything() }
@@ -284,6 +311,9 @@ class AlarmService : Service() {
     acquireWakeLock(duration)
     soundPlayer = openPlayer(soundUri, alarm = false, loop = false) { finishSoundOnly() }
     if (vibrate) startVibration(insistent = false)
+
+    isSounding = true
+    publishRinging(true)
 
     val runnable = Runnable { finishSoundOnly() }
     soundStop = runnable
@@ -380,8 +410,20 @@ class AlarmService : Service() {
       )
     }
 
+    /**
+     * Carry the reminder onto the alarm screen.
+     *
+     * This intent had no extras at all, so opening the alarm from its notification showed
+     * "Alarm" with no message, and Snooze then re-armed a generic alarm with the system tone
+     * instead of the user's reminder and their chosen sound.
+     */
     val open = Intent(this, AlarmActivity::class.java).apply {
       addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+      putExtra(AlarmActivity.EXTRA_TITLE, ringingTitle)
+      putExtra(AlarmActivity.EXTRA_BODY, ringingBody)
+      putExtra(EXTRA_SOUND_URI, ringingSoundUri)
+      putExtra(EXTRA_DURATION_SECONDS, ringingDuration)
+      putExtra(EXTRA_VIBRATE, ringingVibrate)
     }
     val pending = PendingIntent.getActivity(
       this, 0, open,
@@ -583,7 +625,13 @@ class AlarmService : Service() {
    */
   private fun finishSoundOnly() {
     releaseOwnSound()
-    if (isRinging) return
+    val wasSounding = isSounding
+    isSounding = false
+    if (isRinging) {
+      // The alarm is still going, so the banner must stay up for it.
+      return
+    }
+    if (wasSounding) publishRinging(false)
 
     releaseWakeLock()
     stopForeground(STOP_FOREGROUND_DETACH)
@@ -599,8 +647,9 @@ class AlarmService : Service() {
    * screen, not the notification, not the app.
    */
   private fun stopEverything() {
-    val wasRinging = isRinging
+    val wasRinging = isRinging || isSounding
     isRinging = false
+    isSounding = false
 
     for (runnable in listOfNotNull(alarmStop, soundStop, backstop)) {
       handler.removeCallbacks(runnable)

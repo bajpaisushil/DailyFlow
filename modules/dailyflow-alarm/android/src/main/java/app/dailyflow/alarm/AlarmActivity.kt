@@ -298,6 +298,20 @@ class AlarmActivity : AppCompatActivity() {
 
   override fun onStart() {
     super.onStart()
+
+    /**
+     * Never outlive the ringing.
+     *
+     * The ACTION_STOPPED broadcast only closes this screen if it is REGISTERED when the
+     * broadcast goes out — stop the alarm from the notification shade while this activity is
+     * backgrounded and it stays alive, showing a Stop for something already stopped and, worse,
+     * a Snooze that would arm a genuinely new alarm for a reminder the user had finished with.
+     */
+    if (!AlarmService.isRinging) {
+      finish()
+      return
+    }
+
     val filter = IntentFilter(AlarmService.ACTION_STOPPED)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
       registerReceiver(stopped, filter, Context.RECEIVER_NOT_EXPORTED)

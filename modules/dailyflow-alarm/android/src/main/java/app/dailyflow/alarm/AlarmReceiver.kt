@@ -57,9 +57,19 @@ class AlarmReceiver : BroadcastReceiver() {
         putExtra(AlarmService.EXTRA_STYLE, AlarmService.STYLE_ALARM)
       }
 
+      /**
+       * A code derived from the alarm, not a single constant.
+       *
+       * Every snooze shared one request code, so snoozing a second alarm while the first was
+       * still pending REPLACED it — the first reminder was cancelled outright and never came
+       * back. Deriving the code from the title and time keeps concurrent snoozes distinct.
+       */
+      val code = snoozeCodeFor(title, at)
+      rememberSnooze(context, code)
+
       val pending = PendingIntent.getBroadcast(
         context,
-        SNOOZE_REQUEST_CODE,
+        code,
         intent,
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
       )
@@ -82,8 +92,22 @@ class AlarmReceiver : BroadcastReceiver() {
       }
     }
 
-    /** Distinct from every scheduled alarm's code, so a snooze cannot overwrite one. */
-    private const val SNOOZE_REQUEST_CODE = 0xB0B
+    /** Namespaced away from every scheduled alarm's code, so a snooze cannot overwrite one. */
+    private fun snoozeCodeFor(title: String, at: Long): Int =
+      ("snooze:" + title + ":" + at).hashCode()
+
+    private const val SNOOZE_PREFS = "dailyflow-alarm"
+    private const val SNOOZE_KEY = "snoozeCodes"
+
+    /** Remember it, so it can be cancelled later — a snooze is in no other ledger. */
+    private fun rememberSnooze(context: Context, code: Int) {
+      try {
+        val prefs = context.getSharedPreferences(SNOOZE_PREFS, Context.MODE_PRIVATE)
+        val existing = prefs.getStringSet(SNOOZE_KEY, emptySet()) ?: emptySet()
+        prefs.edit().putStringSet(SNOOZE_KEY, existing + code.toString()).apply()
+      } catch (_: Exception) {
+      }
+    }
 
     /**
      * Cancel a pending snooze.
@@ -95,14 +119,19 @@ class AlarmReceiver : BroadcastReceiver() {
      */
     fun cancelSnooze(context: Context): Boolean = try {
       val manager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
-      manager.cancel(
-        PendingIntent.getBroadcast(
-          context,
-          SNOOZE_REQUEST_CODE,
-          Intent(context, AlarmReceiver::class.java).setAction(ACTION_FIRE),
-          PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        ),
-      )
+      val prefs = context.getSharedPreferences(SNOOZE_PREFS, Context.MODE_PRIVATE)
+      for (raw in prefs.getStringSet(SNOOZE_KEY, emptySet()) ?: emptySet()) {
+        val code = raw.toIntOrNull() ?: continue
+        manager.cancel(
+          PendingIntent.getBroadcast(
+            context,
+            code,
+            Intent(context, AlarmReceiver::class.java).setAction(ACTION_FIRE),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+          ),
+        )
+      }
+      prefs.edit().remove(SNOOZE_KEY).apply()
       true
     } catch (_: Exception) {
       false

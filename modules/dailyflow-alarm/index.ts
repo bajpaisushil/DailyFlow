@@ -63,6 +63,7 @@ interface AlarmModule extends NativeModule<AlarmEvents> {
   ): boolean
   cancelScheduled(id: string): boolean
   cancelSnooze(): boolean
+  clearScheduledMirror(): boolean
   canScheduleExact(): boolean
   openExactAlarmSettings(): boolean
 }
@@ -220,6 +221,21 @@ export function scheduleAlarm(input: {
  * A snooze is armed under a fixed request code that the cancel-by-id path can never name, so
  * without this it would still ring five minutes later even after everything was erased.
  */
+/**
+ * Forget the native record of what is scheduled.
+ *
+ * That record exists so a reboot can put alarms back without starting JavaScript, which means
+ * erasing the app must erase it too — otherwise the next restart would faithfully restore
+ * alarms for reminders the user has deleted.
+ */
+export function clearScheduledAlarmMirror(): void {
+  try {
+    native?.clearScheduledMirror()
+  } catch {
+    // No module; nothing mirrored.
+  }
+}
+
 export function cancelSnoozedAlarm(): void {
   try {
     native?.cancelSnooze()

@@ -100,17 +100,60 @@ export async function openSavedCopy(): Promise<ImportOutcome> {
 
   if (!looksLikeOurBackup(parsed)) return { ok: false, reason: 'notOurFile' }
 
-  const counts = restore(parsed)
-  return { ok: true, counts }
+  /**
+   * A file that passes the shape check can still be unusable inside. `restore` validates every
+   * row before touching anything and throws rather than half-loading, so the user is told the
+   * copy is bad and keeps what they had.
+   */
+  try {
+    const counts = restore(parsed)
+    return { ok: true, counts }
+  } catch {
+    return { ok: false, reason: 'notOurFile' }
+  }
 }
 
 /**
  * Replaces the current contents with the backup's. Destructive by design — "open a saved
  * copy" means exactly that — so callers must confirm with the user first.
  */
+/**
+ * Every row must be an object with a string id, or the file is not usable.
+ *
+ * Checked BEFORE anything is written. The load used to clear each table and then write it, one
+ * table at a time and outside any transaction — so a file that was valid enough to open but
+ * malformed halfway through emptied the user's real data and then failed, with no way back.
+ * "Open a saved copy" is destructive by design; destroying data for a copy that turns out to
+ * be unusable is not.
+ */
+function usableRows(rows: unknown): boolean {
+  if (rows == null) return true
+  if (!Array.isArray(rows)) return false
+  return rows.every(
+    (r) => typeof r === 'object' && r !== null && typeof (r as { id?: unknown }).id === 'string',
+  )
+}
+
 export function restore(envelope: ExportEnvelope): Record<string, number> {
   const d = envelope.data
   const counts: Record<string, number> = {}
+
+  const tables: Array<[store.Collection, unknown]> = [
+    ['places', d.places],
+    ['checklists', d.checklists],
+    ['checklistRuns', d.checklistRuns],
+    ['routines', d.routines],
+    ['reminders', d.reminders],
+    ['automations', d.automations],
+    ['commuteProfiles', d.commuteProfiles],
+    ['commuteSessions', d.commuteSessions],
+    ['activity', d.activity],
+  ]
+
+  // Validate the WHOLE file first. Nothing is destroyed for a copy that cannot be loaded.
+  for (const [, rows] of tables) {
+    if (!usableRows(rows)) throw new Error('backup is not usable')
+  }
 
   const load = <T extends { id: string }>(collection: store.Collection, rows: T[] | undefined) => {
     store.clearCollection(collection)
@@ -122,15 +165,15 @@ export function restore(envelope: ExportEnvelope): Record<string, number> {
     counts[collection] = rows.length
   }
 
-  load('places', d.places)
-  load('checklists', d.checklists)
-  load('checklistRuns', d.checklistRuns)
-  load('routines', d.routines)
-  load('reminders', d.reminders)
-  load('automations', d.automations)
-  load('commuteProfiles', d.commuteProfiles)
-  load('commuteSessions', d.commuteSessions)
-  load('activity', d.activity)
+  /**
+   * One transaction for the entire clear-and-load, so a failure part-way rolls the database
+   * back to exactly what the user had before they opened the file.
+   */
+  store.transaction(() => {
+    for (const [collection, rows] of tables) {
+      load(collection, rows as Array<{ id: string }> | undefined)
+    }
+  })
 
   if (d.settings) {
     // Keep the incoming preferences but never a stale schema version.

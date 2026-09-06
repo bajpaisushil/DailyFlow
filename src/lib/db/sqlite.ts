@@ -249,3 +249,13 @@ export function rowCount(collection: Collection): number {
 }
 
 export const ALL_COLLECTIONS = COLLECTIONS
+
+/**
+ * Run a set of writes as one all-or-nothing unit.
+ *
+ * Restoring a backup needs this: it clears every table and reloads it, and a failure half way
+ * through used to leave the user with neither their own data nor the backup's.
+ */
+export function transaction(body: () => void): void {
+  getDb().withTransactionSync(body)
+}

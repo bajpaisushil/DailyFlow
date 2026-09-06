@@ -82,7 +82,20 @@ export async function pickSound(): Promise<PickResult> {
     const fileName = `${newId()}${extension}`
     const destination = new File(soundsDirectory(), fileName)
 
-    source.copy(destination)
+    /**
+     * copySync, not copy.
+     *
+     * `File.copy()` returns a Promise. It was called without awaiting and the source was
+     * deleted on the very next line, so the copy raced the delete: the sound could end up
+     * truncated or absent, and `soundUri` then returns null — a reminder that silently loses
+     * the sound the user chose for it.
+     */
+    source.copySync(destination)
+
+    // Prove the copy landed before claiming success or deleting anything.
+    if (!destination.exists || (destination.size ?? 0) === 0) {
+      return { ok: false, reason: 'failed' }
+    }
 
     /**
      * Delete the picker's own copy.

@@ -4,7 +4,9 @@ import { compileReminder, staleReminderAutomationIds } from './compileReminder'
 import { resyncAll } from './apply'
 import { syncGeofences } from '@/lib/location/geofence'
 import { syncAlarms } from '@/lib/notify/alarmSchedule'
-import { cancelScheduledAlarm, cancelSnoozedAlarm } from '../../../modules/dailyflow-alarm'
+import {
+  cancelScheduledAlarm, cancelSnoozedAlarm, clearScheduledAlarmMirror,
+} from '../../../modules/dailyflow-alarm'
 
 /**
  * Saving a reminder, and turning it into something the phone will actually do.
@@ -110,10 +112,20 @@ export function cancelAllAlarms(): void {
   // A snooze is armed under a fixed code the ledger never sees, so it needs saying separately
   // — otherwise erasing everything still leaves one alarm due to ring in five minutes.
   cancelSnoozedAlarm()
+  // And the native mirror, or the next reboot would restore alarms for deleted reminders.
+  clearScheduledAlarmMirror()
 }
 
 /** Removes a reminder and everything it generated. */
 export async function removeReminder(reminderId: string): Promise<void> {
+  /**
+   * A pending snooze is armed under its own code and appears in no ledger, so nothing else can
+   * reach it. Deleting a reminder while its snooze is pending would otherwise ring five minutes
+   * later for something the user has just thrown away. Only one snooze can be outstanding at a
+   * time, so cancelling on any deletion is bounded and always the safer error.
+   */
+  cancelSnoozedAlarm()
+
   for (const a of repo.automations.all()) {
     if (a.sourceReminderId === reminderId) repo.automations.purge(a.id)
   }

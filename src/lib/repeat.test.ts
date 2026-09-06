@@ -3,6 +3,8 @@ import assert from 'node:assert/strict'
 import { describeRepeat, isDated, nextDates } from './repeat.ts'
 import { alarmOccurrences } from './notify/alarmOccurrences.ts'
 import { buildToday } from './today.ts'
+import { compileReminder } from './engine/compileReminder.ts'
+import { planFor } from './notify/plan.ts'
 import type { Reminder, Weekday } from './types.ts'
 
 /**
@@ -199,5 +201,69 @@ describe('dated repeats on the Today screen', () => {
 
   it('comes back the following year', () => {
     assert.equal(todayFor(on(2027, 11, 8)).entries.length, 1)
+  })
+})
+
+/**
+ * The whole point: a dated repeat must produce firings ONLY on its dates.
+ *
+ * 362 tests passed while a yearly reminder compiled to a firing every single day for four
+ * months. Everything was tested in isolation — nextDates was right, courseOccurrences was
+ * right — but planFor silently dropped `window.dates` on the way between them, so the range
+ * walk ran instead: no start date, no weekday restriction, every day. The lesson is that the
+ * seam between two correct functions is where this class of bug lives, so these tests go
+ * through the REAL compile-and-plan path rather than any single function.
+ */
+describe('a dated repeat fires only on its dates', () => {
+  const yearly: Reminder = {
+    id: 'y1', title: 'Diwali', icon: 'sparkle', enabled: true,
+    times: ['08:00'], days: [] as Weekday[], placeTriggers: [], leadMinutes: [0],
+    repeat: 'yearly', onDate: '2026-11-08',
+    priority: 'normal', alertStyle: 'notification', sound: true, vibrate: true,
+    createdAt: 0, updatedAt: 0,
+  }
+
+  const plansFor = (r: Reminder, at: Date) =>
+    compileReminder(r, []).flatMap((a) => planFor(a, at))
+
+  it('produces one firing per date, not one per day', () => {
+    const plans = plansFor(yearly, on(2026, 9, 7))
+    assert.ok(plans.length > 0, 'a yearly reminder must produce firings at all')
+    // Four look-ahead years. Before the fix this was 120 — every day of the range walk.
+    assert.ok(plans.length <= 4, `expected at most 4 firings, got ${plans.length}`)
+  })
+
+  it('lands every firing on the 8th of November', () => {
+    for (const plan of plansFor(yearly, on(2026, 9, 7))) {
+      assert.equal(plan.when.every, 'once', 'a dated repeat must never be a repeating rule')
+      const d = new Date((plan.when as { at: number }).at)
+      assert.equal(d.getMonth(), 10, `fired in month ${d.getMonth() + 1}`)
+      assert.equal(d.getDate(), 8, `fired on day ${d.getDate()}`)
+    }
+  })
+
+  it('never compiles to a daily or weekly rule', () => {
+    // The failure mode was silent: `every: 'day'` looks perfectly healthy in the schedule.
+    for (const plan of plansFor(yearly, on(2026, 9, 7))) {
+      assert.notEqual(plan.when.every, 'day')
+      assert.notEqual(plan.when.every, 'week')
+    }
+  })
+
+  it('produces NOTHING rather than a daily rule when the date is missing', () => {
+    // A yearly reminder saved before a date was picked used to become "every day, forever".
+    const noDate = { ...yearly, onDate: undefined }
+    assert.deepEqual(plansFor(noDate, on(2026, 9, 7)), [])
+  })
+
+  it('produces NOTHING for a one-off whose day has passed', () => {
+    const gone: Reminder = { ...yearly, repeat: 'once', onDate: '2026-09-01' }
+    assert.deepEqual(plansFor(gone, on(2026, 9, 7)), [])
+  })
+
+  it('still lets an ordinary weekly reminder repeat', () => {
+    const weekly: Reminder = { ...yearly, repeat: 'weekly', onDate: undefined, days: [] }
+    const plans = plansFor(weekly, on(2026, 9, 7))
+    assert.ok(plans.some((p) => p.when.every === 'day'), 'a daily habit must stay a daily rule')
   })
 })

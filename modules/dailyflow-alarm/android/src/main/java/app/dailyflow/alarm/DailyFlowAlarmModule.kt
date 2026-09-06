@@ -103,7 +103,14 @@ class DailyFlowAlarmModule : Module() {
       true
     }
 
-    Function("isRinging") { AlarmService.isRinging }
+    // Either kind of noise counts: the in-app Stop must appear for a reminder playing its own
+    // sound as well as for an alarm, since sound mode has no screen of its own.
+    Function("isRinging") { AlarmService.isRinging || AlarmService.isSounding }
+
+    Function("clearScheduledMirror") {
+      AlarmStore.clear(context)
+      true
+    }
 
     /**
      * Ring now. Starts the sound first and then the screen, so audio begins even if the
@@ -180,6 +187,22 @@ class DailyFlowAlarmModule : Module() {
           pending,
         )
       }
+
+      // Mirror it natively so a reboot can put it back without starting JavaScript.
+      AlarmStore.put(
+        context,
+        AlarmStore.Entry(
+          id = id,
+          at = triggerAtMs.toLong(),
+          title = title,
+          body = body,
+          soundUri = soundUri,
+          durationSeconds = durationSeconds,
+          vibrate = vibrate,
+          style = style ?: AlarmService.STYLE_ALARM,
+        ),
+      )
+
       canBeExact
     }
 
@@ -193,6 +216,7 @@ class DailyFlowAlarmModule : Module() {
        * Passing the alarm style keeps that explicit rather than accidental.
        */
       manager.cancel(pendingFor(id, "", null, null, 60, true, AlarmService.STYLE_ALARM))
+      AlarmStore.remove(context, id)
       true
     }
 

@@ -258,3 +258,28 @@ describe('stale alarm cancellation', () => {
     )
   })
 })
+
+/**
+ * One reminder, one delivery.
+ *
+ * An alarm-style reminder was scheduled twice for the same instant: through AlarmManager, which
+ * rings and seizes the screen, AND as an ordinary OS notification on the loud alarm channel.
+ * Two sounds and two rows in the shade for one reminder.
+ *
+ * But 'both' must NOT be claimed the same way: with 'both' only the firing at the real moment
+ * rings, and the early warnings are deliberately ordinary notifications. Claiming the whole
+ * reminder would silently delete the warning the user asked for.
+ */
+describe('what the native path claims', () => {
+  it('an alarm-only reminder is fully claimed, so it is not also notified', () => {
+    const r = reminder({ alertStyle: 'alarm', leadMinutes: [0, 30] })
+    // Every firing of an 'alarm' reminder rings, so nothing is left for the OS to deliver.
+    assert.equal(alarmOccurrences(r, from, 1).length, 2)
+  })
+
+  it("'both' rings only at the real moment, so its warnings must survive", () => {
+    const r = reminder({ alertStyle: 'both', leadMinutes: [0, 30] })
+    // Only one of the two firings is an alarm; the other has to remain a notification.
+    assert.equal(alarmOccurrences(r, from, 1).length, 1)
+  })
+})

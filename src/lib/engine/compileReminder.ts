@@ -56,6 +56,7 @@ export function compileReminder(
   const now = Date.now()
   // A Date as well as a stamp: dated repeats need to know which occurrences are still ahead.
   const today = new Date(now)
+  const timeWindow = windowFor(reminder, today)
   const out: Automation[] = []
   const listLine = checklistLine(reminder, checklists)
 
@@ -98,6 +99,10 @@ export function compileReminder(
     if (base == null) continue
 
     for (const lead of leads) {
+      // A dated repeat with no usable date produces no timed automation at all. Falling
+      // through with `window: undefined` would mean "repeat forever", i.e. every day.
+      if (timeWindow === 'none') continue
+
       const raw = base - lead
       const crossedMidnight = raw < 0
       const fireAt = toHHMM(raw)
@@ -117,7 +122,7 @@ export function compileReminder(
         match: 'all',
         // A bounded reminder carries its window through, so the scheduler can lay out dated
         // occurrences that expire rather than a rule that repeats forever.
-        window: windowFor(reminder, today),
+        window: timeWindow,
         actions: [{
           kind: 'notify',
           params: {
@@ -151,7 +156,8 @@ export function compileReminder(
       match: 'all',
       // A course that ends must end completely. Without this the clock reminders stopped on
       // schedule while "remind me when I get home" kept firing forever.
-      window: windowFor(reminder, today),
+      // A place trigger is not a clock rule, so a dated window never applies to it.
+      window: timeWindow === 'none' ? undefined : timeWindow,
       actions: [{
         kind: 'notify',
         params: {
@@ -201,13 +207,25 @@ export function scheduleCost(reminder: Reminder): number {
  */
 const LOOK_AHEAD = 4
 
-function windowFor(
-  reminder: Reminder,
-  now: Date,
-): { from?: LocalDate; until: LocalDate; dates?: LocalDate[] } | undefined {
-  if (isDated(reminder.repeat) && reminder.onDate) {
+type WindowResult =
+  | { from?: LocalDate; until: LocalDate; dates?: LocalDate[] }
+  /** Compile no timed automations at all — distinct from "no window, repeat forever". */
+  | 'none'
+  | undefined
+
+function windowFor(reminder: Reminder, now: Date): WindowResult {
+  if (isDated(reminder.repeat)) {
+    /**
+     * A dated repeat with no usable date compiles to NOTHING.
+     *
+     * Returning undefined here used to mean "no window", which is the signal for an unbounded
+     * repeating rule — so a one-off whose date had already passed, or a yearly reminder saved
+     * before a date was picked, became a reminder that fired EVERY DAY forever. The failure
+     * mode has to be silence, not a daily alarm.
+     */
+    if (!reminder.onDate) return 'none'
     const dates = nextDates(reminder.repeat!, reminder.onDate, now, LOOK_AHEAD)
-    if (dates.length === 0) return undefined
+    if (dates.length === 0) return 'none'
     return { dates, until: dates[dates.length - 1]! }
   }
 

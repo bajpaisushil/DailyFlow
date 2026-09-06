@@ -95,6 +95,13 @@ export function planFor(automation: Automation, now = new Date()): ScheduledPlan
         days,
         startsOn: automation.window.from,
         endsOn: automation.window.until,
+        /**
+         * Without this the dated branch is never taken, and a monthly or yearly reminder falls
+         * into the RANGE walk instead: no `from`, so it starts today, no weekday restriction,
+         * and it fires every single day up to the walk's limit. Diwali every day for four
+         * months. The dates are the whole instruction.
+         */
+        dates: automation.window.dates,
         leadMinutes: [0],
       },
       now,

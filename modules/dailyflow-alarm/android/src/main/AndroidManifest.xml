@@ -38,6 +38,22 @@
       android:name="app.dailyflow.alarm.AlarmStopReceiver"
       android:exported="false" />
 
+    <!-- Android clears the whole AlarmManager table on reboot. Without this, every alarm was
+         silently lost until the user next opened the app — worst for reminders that have no
+         other delivery route at all. -->
+    <receiver
+      android:name="app.dailyflow.alarm.BootReceiver"
+      android:enabled="true"
+      android:exported="true">
+      <intent-filter>
+        <action android:name="android.intent.action.BOOT_COMPLETED" />
+        <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+        <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+        <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+        <action android:name="android.intent.action.TIME_SET" />
+      </intent-filter>
+    </receiver>
+
     <service
       android:name="app.dailyflow.alarm.AlarmService"
       android:exported="false"

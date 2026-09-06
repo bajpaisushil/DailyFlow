@@ -62,6 +62,8 @@ export function syncAlarms(reminders: Reminder[], previousIds: string[] = []): A
   let exact = true
   const ownSoundReminderIds: string[] = []
   const scheduledIds: string[] = []
+  // Reminders the native path has taken over, by either route.
+  const claimed = new Set<string>()
 
   for (const reminder of reminders) {
     for (const at of alarmOccurrences(reminder, now)) {
@@ -80,6 +82,24 @@ export function syncAlarms(reminders: Reminder[], previousIds: string[] = []): A
       if (outcome !== 'failed') {
         scheduled += 1
         scheduledIds.push(id)
+        /**
+         * Claim it, so the notification scheduler skips it.
+         *
+         * An alarm-style reminder was being scheduled TWICE for the same instant: once through
+         * AlarmManager, which rings and takes the screen, and once as an ordinary OS
+         * notification on the loud alarm channel. Two sounds, two entries in the shade, for one
+         * reminder. Claimed only after a firing really was scheduled, so a failed native
+         * schedule still falls back to the notification rather than going silent.
+         */
+        /**
+         * Only 'alarm', never 'both'.
+         *
+         * With 'both', ONLY the firing at the real moment rings; the early warnings are meant
+         * to stay ordinary notifications. Claiming the whole reminder would delete those
+         * warnings entirely — the user would lose the "in 30 minutes" nudge they asked for and
+         * be left with just the alarm.
+         */
+        if (reminder.alertStyle === 'alarm') claimed.add(reminder.id)
       }
     }
 
@@ -124,8 +144,10 @@ export function syncAlarms(reminders: Reminder[], previousIds: string[] = []): A
       scheduled += 1
       scheduledIds.push(id)
     }
-    if (anyScheduled) ownSoundReminderIds.push(reminder.id)
+    if (anyScheduled) claimed.add(reminder.id)
   }
+
+  ownSoundReminderIds.push(...claimed)
 
   return { scheduled, exact, available: true, ownSoundReminderIds, scheduledIds }
 }

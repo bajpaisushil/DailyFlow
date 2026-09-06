@@ -1,5 +1,6 @@
 import * as repo from '@/lib/db/repo'
 import { pruneUnusedSounds } from '@/lib/notify/customSound'
+import { compileReminder, staleReminderAutomationIds } from './compileReminder'
 import { getDb } from '@/lib/db/sqlite'
 import { resyncAll } from './apply'
 import { resyncAlarms } from './applyReminder'
@@ -29,6 +30,7 @@ export async function boot(): Promise<BootReport> {
   backfillSortKeys()
   prune()
   pruneOrphanSounds()
+  recompileReminders()
 
   // Alarms are laid out only two weeks ahead, so every start extends the horizon — and this
   // is also what restores them after a reboot, when AlarmManager forgets everything.
@@ -91,6 +93,36 @@ function backfillSortKeys(): void {
     }
   } catch {
     // A failed backfill costs disk, not correctness. Never block startup for it.
+  }
+}
+
+/**
+ * Rebuild every reminder's automations from the reminder itself.
+ *
+ * Automations are DERIVED, but they were stored once at save time and then reloaded verbatim
+ * forever. For a dated repeat that is fatal: the window holds the next four concrete dates, so
+ * a monthly reminder simply stopped after four months and a yearly one after four years, with
+ * the reminder still sitting there looking healthy. A restored backup had the same problem —
+ * it brought back automations computed on another day.
+ *
+ * Ids are preserved, so the firing ledger that prevents duplicate reminders stays valid.
+ */
+function recompileReminders(): void {
+  try {
+    const checklists = repo.checklists.all()
+    const all = repo.automations.all()
+
+    for (const reminder of repo.reminders.all()) {
+      const existing = all.filter((a) => a.sourceReminderId === reminder.id)
+      const compiled = compileReminder(reminder, checklists, existing)
+      repo.automations.saveMany(compiled)
+      for (const id of staleReminderAutomationIds(compiled, existing)) {
+        repo.automations.purge(id)
+      }
+    }
+  } catch {
+    // A failed recompile must not stop the app starting; the stored automations still work
+    // for everything except a dated repeat that has run out of dates.
   }
 }
 
