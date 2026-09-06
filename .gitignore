@@ -57,3 +57,8 @@ DailyFlow.apk
 
 # Records which commit DailyFlow.apk was built from.
 .apk-commit
+
+# Gradle output inside local native modules. The root /android rule does not reach these,
+# so build artifacts were being committed.
+modules/*/android/build/
+modules/*/android/.cxx/
