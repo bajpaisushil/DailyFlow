@@ -11,6 +11,10 @@ import { useColors } from '@/theme/ThemeProvider'
 
 interface Props {
   onChoose: (place: FoundPlace) => void
+  /** Lifted so the editor can plot every candidate on the map beside the list. */
+  onResults?: (places: FoundPlace[]) => void
+  /** Which result is currently chosen, so the list can show it as selected. */
+  selected?: FoundPlace | null
 }
 
 /**
@@ -23,7 +27,7 @@ interface Props {
  * The lookup is debounced and goes through the operating system's geocoder, so there is no
  * API key and no service of ours in the path.
  */
-export function PlaceSearch({ onChoose }: Props) {
+export function PlaceSearch({ onChoose, onResults, selected }: Props) {
   const c = useColors()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<FoundPlace[]>([])
@@ -35,6 +39,7 @@ export function PlaceSearch({ onChoose }: Props) {
     if (timer.current) clearTimeout(timer.current)
     if (text.trim().length < 3) {
       setResults([])
+      onResults?.([])
       setSearched(false)
       return
     }
@@ -43,10 +48,11 @@ export function PlaceSearch({ onChoose }: Props) {
       setSearching(true)
       const found = await searchPlaces(text)
       setResults(found)
+      onResults?.(found)
       setSearched(true)
       setSearching(false)
     }, 550)
-  }, [])
+  }, [onResults])
 
   return (
     <View>
@@ -72,14 +78,18 @@ export function PlaceSearch({ onChoose }: Props) {
         <Animated.View key={`${place.lat},${place.lon},${i}`} entering={FadeIn.duration(180)}>
           <PressableScale
             depth="sm"
-            onPress={() => {
-              onChoose(place)
-              setResults([])
-              setQuery(place.label)
-            }}
+            onPress={() => onChoose(place)}
             accessibilityRole="button"
             accessibilityLabel={place.label}
-            style={[styles.result, { backgroundColor: c.surfaceAlt }]}
+            style={[
+              styles.result,
+              {
+                backgroundColor:
+                  selected && selected.lat === place.lat && selected.lon === place.lon
+                    ? c.accentSoft
+                    : c.surfaceAlt,
+              },
+            ]}
           >
             <Icon name="place" size={19} color={c.accent} />
             <View style={{ flex: 1 }}>
@@ -88,6 +98,11 @@ export function PlaceSearch({ onChoose }: Props) {
                 <Text variant="caption" tone="muted" numberOfLines={1}>{place.detail}</Text>
               ) : null}
             </View>
+            {/* Selection is carried by a tick as well as by the tint, because the tint alone
+                is ~1.1:1 against the surface — well below what a state indicator needs. */}
+            {selected && selected.lat === place.lat && selected.lon === place.lon ? (
+              <Icon name="checkCircle" size={21} color={c.accent} />
+            ) : null}
           </PressableScale>
         </Animated.View>
       ))}

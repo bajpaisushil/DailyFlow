@@ -13,9 +13,9 @@ import { IconPicker } from '@/components/ui/IconPicker'
 import { useData } from '@/stores/data'
 import { newId } from '@/lib/db/repo'
 import { getCurrentFix, requestForeground, type Fix } from '@/lib/location/service'
-import { describe as describeCoords } from '@/lib/location/search'
+import { describe as describeCoords, type FoundPlace } from '@/lib/location/search'
 import { mapsAvailable } from '@/lib/location/maps'
-import { MapPicker } from '@/components/places/MapPicker'
+import { MapPicker, type MapMarker } from '@/components/places/MapPicker'
 import { PlaceSearch } from '@/components/places/PlaceSearch'
 import { RADIUS_PRESETS, type Place, type RadiusPresetKey } from '@/lib/types'
 import { metresForPreset, nearestPreset } from '@/lib/places'
@@ -63,10 +63,29 @@ export default function PlaceEditor() {
   const [locating, setLocating] = useState(false)
   const [locationError, setLocationError] = useState(false)
   const [showMap, setShowMap] = useState(false)
+  /** Every candidate from the last search, so the map can plot them all. */
+  const [candidates, setCandidates] = useState<FoundPlace[]>([])
+  const [chosen, setChosen] = useState<FoundPlace | null>(null)
   /** Address the OS reports for the chosen spot, shown so the user can confirm it is right. */
   const [addressLabel, setAddressLabel] = useState<string | null>(null)
 
   const canUseMap = mapsAvailable()
+
+  /**
+   * Every search candidate plus the current pin. Showing all of them is the point of the
+   * map here: a geocoder often returns several places with the same name, and where they
+   * are is the only thing that tells them apart.
+   */
+  const mapMarkers: MapMarker[] = useMemo(() => {
+    const fromSearch = candidates.map((p) => ({
+      lat: p.lat,
+      lon: p.lon,
+      title: p.label,
+      selected: chosen?.lat === p.lat && chosen?.lon === p.lon,
+    }))
+    if (fromSearch.length > 0) return fromSearch
+    return fix ? [{ lat: fix.lat, lon: fix.lon, selected: true }] : []
+  }, [candidates, chosen, fix])
 
   /**
    * Whenever the pin moves, ask the OS what is there and offer it as the name. Most users
@@ -167,7 +186,15 @@ export default function PlaceEditor() {
         </Text>
 
         <PlaceSearch
+          selected={chosen}
+          onResults={(found) => {
+            setCandidates(found)
+            // Show the map as soon as there is something to compare, so a list of
+            // similar-sounding names can be told apart by where they actually are.
+            if (found.length > 0) setShowMap(true)
+          }}
           onChoose={(found) => {
+            setChosen(found)
             void adoptCoords(found.lat, found.lon, true)
             setShowMap(true)
           }}
@@ -190,6 +217,12 @@ export default function PlaceEditor() {
         <MapPicker
           lat={fix.lat}
           lon={fix.lon}
+          markers={mapMarkers}
+          hint={
+            candidates.length > 1
+              ? 'Tap a pin, or tap the map to move it'
+              : 'Tap the map to move the pin'
+          }
           onPick={(nextLat, nextLon) => void adoptCoords(nextLat, nextLon, false)}
         />
       ) : null}
