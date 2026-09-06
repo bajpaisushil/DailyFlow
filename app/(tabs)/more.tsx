@@ -27,7 +27,6 @@ interface Entry {
 const ENTRIES: Entry[] = [
   { icon: 'list', label: S.nav.lists, help: S.list.help, href: '/lists' },
   { icon: 'repeat', label: S.nav.dayPlans, help: S.plan.help, href: '/plans' },
-  { icon: 'metro', label: S.way.title, help: 'Use your travel time well.', href: '/commute' },
   { icon: 'history', label: S.settings.whatHappened, help: S.settings.whatHappenedHelp, href: '/history' },
   { icon: 'space', label: S.settings.spaceUsed, help: S.settings.spaceUsedHelp, href: '/storage' },
   { icon: 'settings', label: S.settings.title, help: S.settings.privacy, href: '/settings' },

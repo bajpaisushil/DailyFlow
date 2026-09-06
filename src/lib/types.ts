@@ -67,6 +67,14 @@ export interface Place extends BaseRecord {
   note?: string
   /** Checklists surfaced when arriving here. */
   checklistIds: Id[]
+  /**
+   * How fast the user typically travels when approaching this place, in km/h.
+   *
+   * Learned from GPS rather than asked for: it is what turns "six minutes before" into a
+   * distance, and nobody should have to answer "are you walking or on a metro?" to set a
+   * reminder. Absent until the first trip is observed.
+   */
+  observedSpeedKmh?: number
   /** Show this place on the Today screen's context strip. */
   pinned?: boolean
   colorKey?: string

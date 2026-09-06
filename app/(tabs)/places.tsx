@@ -9,6 +9,7 @@ import { Text } from '@/components/ui/Text'
 import { Icon, IconBadge, type IconName } from '@/components/ui/Icon'
 import { PressableScale } from '@/components/ui/PressableScale'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { Button } from '@/components/ui/Button'
 import { PermissionCard } from '@/components/ui/PermissionCard'
 import { useCapabilities } from '@/hooks/useCapabilities'
 import { EXPO_GO_LIMITATION, supportsBackgroundGeofencing } from '@/lib/runtime'
@@ -93,6 +94,18 @@ export default function PlacesScreen() {
           )
         })}
       </View>
+
+      {/* A labelled button, not just the plus in the header. An icon on its own is
+          ambiguous — the app's own rule is that every icon keeps its word — and the two
+          large Home/Work cards above pull the eye away from a small header control. */}
+      <Button
+        label={S.place.addOne}
+        icon="plus"
+        variant="secondary"
+        full
+        style={{ marginBottom: space.lg }}
+        onPress={() => router.push('/place/new')}
+      />
 
       {places.length === 0 ? (
         <EmptyState

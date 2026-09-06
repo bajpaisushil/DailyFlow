@@ -22,7 +22,6 @@ import { notificationsAvailable, readPermission, requestPermission } from '@/lib
 import type { AlertStyle, NotificationPriority, PlaceTrigger, Reminder, Weekday } from '@/lib/types'
 import { formatTime, WEEKDAYS_MON_FRI } from '@/lib/time'
 import { describeCourse, endDateAfterDays, occurrenceCount } from '@/lib/course'
-import { APPROACH_SPEEDS } from '@/lib/types'
 import { describeApproach } from '@/lib/location/approach'
 import { useSettings } from '@/stores/settings'
 import { font, radius, space } from '@/theme/tokens'
@@ -98,12 +97,12 @@ export default function ReminderEditor() {
   }, [])
 
   /** How far ahead of arriving to warn — "wake me six minutes before my stop". */
-  const setApproach = useCallback((placeId: string, minutes: number | undefined, kmh: number) => {
+  const setApproach = useCallback((placeId: string, minutes: number | undefined) => {
+    // No speed is stored: the app works out how fast the user travels from GPS, so the only
+    // thing worth asking is how much warning they want.
     setPlaceTriggers((prev) =>
       prev.map((t) =>
-        t.placeId === placeId && t.on === 'arrive'
-          ? { ...t, approachMinutes: minutes, approachSpeedKmh: kmh }
-          : t,
+        t.placeId === placeId && t.on === 'arrive' ? { ...t, approachMinutes: minutes } : t,
       ),
     )
   }, [])
@@ -350,9 +349,7 @@ export default function ReminderEditor() {
                         return (
                           <PressableScale
                             key={String(minutes)}
-                            onPress={() =>
-                              setApproach(place.id, minutes, trigger?.approachSpeedKmh ?? 45)
-                            }
+                            onPress={() => setApproach(place.id, minutes)}
                             depth="sm"
                             accessibilityRole="radio"
                             accessibilityState={{ selected: active }}
@@ -375,52 +372,15 @@ export default function ReminderEditor() {
 
                     {placeTriggers.find((t) => t.placeId === place.id && t.on === 'arrive')
                       ?.approachMinutes ? (
-                      <>
-                        <View style={styles.chips}>
-                          {Object.entries(APPROACH_SPEEDS).map(([key, speed]) => {
-                            const trigger = placeTriggers.find(
-                              (t) => t.placeId === place.id && t.on === 'arrive',
-                            )
-                            const active = (trigger?.approachSpeedKmh ?? 45) === speed.kmh
-                            return (
-                              <PressableScale
-                                key={key}
-                                onPress={() =>
-                                  setApproach(place.id, trigger?.approachMinutes, speed.kmh)
-                                }
-                                depth="sm"
-                                accessibilityRole="radio"
-                                accessibilityState={{ selected: active }}
-                                accessibilityLabel={speed.label}
-                                style={[
-                                  styles.smallChip,
-                                  { backgroundColor: active ? c.accentSoft : c.canvasDeep },
-                                ]}
-                              >
-                                <Icon
-                                  name={speed.icon as IconName}
-                                  size={15}
-                                  color={active ? c.accent : c.inkFaint}
-                                />
-                                <Text
-                                  variant="label"
-                                  style={{ color: active ? c.accent : c.inkMuted, fontSize: 13 }}
-                                >
-                                  {speed.label}
-                                </Text>
-                              </PressableScale>
-                            )
-                          })}
-                        </View>
-                        <Text variant="caption" tone="faint">
-                          {describeApproach(
-                            placeTriggers.find(
-                              (t) => t.placeId === place.id && t.on === 'arrive',
-                            )!,
-                            place.radiusM,
-                          )}
-                        </Text>
-                      </>
+                      <Text variant="caption" tone="faint">
+                        {describeApproach(
+                          placeTriggers.find(
+                            (t) => t.placeId === place.id && t.on === 'arrive',
+                          )!,
+                          place.radiusM,
+                          place,
+                        )}
+                      </Text>
                     ) : null}
                   </View>
                 ) : null}

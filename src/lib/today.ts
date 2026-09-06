@@ -1,4 +1,4 @@
-import type { Checklist, ChecklistRun, Place, Reminder, Routine } from '@/lib/types'
+import type { Checklist, ChecklistRun, HHMM, Place, Reminder, Routine, Weekday } from '@/lib/types'
 import { localDateKey, minutesOfDay, parseHHMM, weekdayOf } from '@/lib/time'
 
 /**
@@ -53,6 +53,21 @@ export interface TodayModel {
   current: TodayEntry | null
   checklists: TodayChecklist[]
   isFreeDay: boolean
+}
+
+/**
+ * Does this reminder have anything to do with today?
+ *
+ * A purely location-based reminder counts: you could reach the place at any moment, so the
+ * list it carries is worth having to hand.
+ */
+function isRelevantToday(
+  reminder: { days: Weekday[]; times: HHMM[]; placeTriggers: unknown[] },
+  today: Weekday,
+): boolean {
+  if (reminder.placeTriggers.length > 0) return true
+  if (reminder.times.length === 0) return false
+  return reminder.days.length === 0 || reminder.days.includes(today)
 }
 
 export function phaseOf(now: Date): DayPhase {
@@ -153,14 +168,22 @@ export function buildToday(input: {
   const upcoming = entries.find((e) => e.status === 'later') ?? null
   if (upcoming) upcoming.status = 'next'
 
-  // Which lists matter today: those attached to any of today's routines, plus daily-reset lists.
+  /**
+   * A list belongs on Today only because something happening today needs it.
+   *
+   * This used to also include every list whose ticks reset daily, which was wrong: reset
+   * frequency describes how a list behaves, not whether it is relevant now. The effect was
+   * that the three starter lists filled the home screen from first launch, so a new user's
+   * Today was a wall of packing lists for trips they had not planned — and the reminders they
+   * had actually created were pushed underneath.
+   */
   const attachedIds = new Set([
     ...entries.flatMap((e) => e.routine?.checklistIds ?? []),
-    ...reminders.filter((r) => r.enabled && r.checklistId).map((r) => r.checklistId!),
+    ...reminders
+      .filter((r) => r.enabled && r.checklistId && isRelevantToday(r, today))
+      .map((r) => r.checklistId!),
   ])
-  const relevant = checklists.filter(
-    (c) => attachedIds.has(c.id) || c.resetRule.kind === 'daily',
-  )
+  const relevant = checklists.filter((c) => attachedIds.has(c.id))
 
   const runByChecklist = new Map(
     runs.filter((r) => r.periodKey === periodKey).map((r) => [r.checklistId, r]),

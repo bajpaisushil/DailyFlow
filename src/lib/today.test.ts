@@ -126,8 +126,22 @@ describe('buildToday — reminders on the timeline', () => {
 })
 
 describe('buildToday — what to remember', () => {
+  /** A reminder that runs today and carries the list, so the list is on the screen at all. */
+  const carrier = {
+    id: 'rem', title: 'Leave for work', icon: 'work', enabled: true,
+    times: ['08:00'], days: [1] as Weekday[], placeTriggers: [], leadMinutes: [0],
+    checklistId: 'c1', priority: 'normal' as const, alertStyle: 'notification' as const,
+    sound: true, vibrate: true, createdAt: 0, updatedAt: 0,
+  }
+
+  const withList = (runs: ChecklistRun[] = []) =>
+    buildToday({
+      now: now(6), routines: [], reminders: [carrier],
+      places: [], checklists: [checklist()], runs,
+    })
+
   it('counts only non-optional items as missing', () => {
-    const model = build({ now: now(6), checklists: [checklist()] })
+    const model = withList()
     const entry = model.checklists[0]!
     assert.deepEqual(entry.missing, ['Laptop'])
     assert.equal(entry.complete, false)
@@ -139,7 +153,7 @@ describe('buildToday — what to remember', () => {
       id: 'run1', checklistId: 'c1', periodKey: '2026-09-07',
       checkedItemIds: ['i1'], startedAt: 0,
     }]
-    const entry = build({ now: now(6), checklists: [checklist()], runs }).checklists[0]!
+    const entry = withList(runs).checklists[0]!
     assert.equal(entry.complete, true)
     assert.deepEqual(entry.missing, [])
   })
@@ -149,9 +163,63 @@ describe('buildToday — what to remember', () => {
       id: 'run1', checklistId: 'c1', periodKey: '2026-09-06',
       checkedItemIds: ['i1'], startedAt: 0,
     }]
-    const entry = build({ now: now(6), checklists: [checklist()], runs }).checklists[0]!
+    const entry = withList(runs).checklists[0]!
     assert.equal(entry.complete, false)
     assert.deepEqual(entry.missing, ['Laptop'])
+  })
+
+  it('does NOT show a list just because it resets daily', () => {
+    // The regression this guards: the three seeded starter lists all reset daily, so they
+    // filled a new user's home screen with packing lists for trips they had not planned.
+    const model = build({ now: now(6), checklists: [checklist()] })
+    assert.equal(model.checklists.length, 0)
+  })
+
+  it('shows a list once a reminder happening today actually carries it', () => {
+    const model = buildToday({
+      now: now(6),
+      routines: [],
+      reminders: [{
+        id: 'rem', title: 'Leave for work', icon: 'work', enabled: true,
+        times: ['08:00'], days: [1] as Weekday[], placeTriggers: [], leadMinutes: [0],
+        checklistId: 'c1', priority: 'normal', alertStyle: 'notification',
+        sound: true, vibrate: true, createdAt: 0, updatedAt: 0,
+      }],
+      places: [], checklists: [checklist()], runs: [],
+    })
+    assert.equal(model.checklists.length, 1)
+  })
+
+  it('leaves out a list whose reminder does not run today', () => {
+    const model = buildToday({
+      now: now(6),
+      routines: [],
+      reminders: [{
+        id: 'rem', title: 'Gym', icon: 'gym', enabled: true,
+        times: ['18:00'], days: [0, 6] as Weekday[], placeTriggers: [], leadMinutes: [0],
+        checklistId: 'c1', priority: 'normal', alertStyle: 'notification',
+        sound: true, vibrate: true, createdAt: 0, updatedAt: 0,
+      }],
+      places: [], checklists: [checklist()], runs: [],
+    })
+    // 2026-09-07 is a Monday; a weekend reminder's list has no business on today's screen.
+    assert.equal(model.checklists.length, 0)
+  })
+
+  it('keeps a location-only reminder\'s list to hand, since arrival can happen any time', () => {
+    const model = buildToday({
+      now: now(6),
+      routines: [],
+      reminders: [{
+        id: 'rem', title: 'At the shop', icon: 'shop', enabled: true,
+        times: [], days: [] as Weekday[],
+        placeTriggers: [{ id: 'p', placeId: 'shop', on: 'arrive' }],
+        leadMinutes: [0], checklistId: 'c1', priority: 'normal', alertStyle: 'notification',
+        sound: true, vibrate: true, createdAt: 0, updatedAt: 0,
+      }],
+      places: [], checklists: [checklist()], runs: [],
+    })
+    assert.equal(model.checklists.length, 1)
   })
 
   it('includes a list attached to a routine even when it does not reset daily', () => {
