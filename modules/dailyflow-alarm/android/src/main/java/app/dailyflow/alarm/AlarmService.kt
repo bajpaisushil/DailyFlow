@@ -149,12 +149,36 @@ class AlarmService : Service() {
     }
   }
 
-  private var player: MediaPlayer? = null
+  /**
+   * The alarm's player and the reminder-sound player are SEPARATE, and each is released before
+   * it is replaced.
+   *
+   * There was one field. A second firing — two reminders on the same place, which
+   * geofence.ts rings in a loop, or two reminders at the same minute — assigned a new
+   * MediaPlayer straight over the live one. The first kept looping at alarm volume with
+   * nothing referencing it, so every Stop in the app reached only the newest player, and
+   * stopSelf() then nulled the service instance so nothing could ever reach the orphan again.
+   * Force-stop or reboot was the only way out. That is precisely "it keeps sounding and there
+   * is no way to stop it".
+   */
+  private var alarmPlayer: MediaPlayer? = null
+  private var soundPlayer: MediaPlayer? = null
   private var vibrator: Vibrator? = null
   private var wakeLock: PowerManager.WakeLock? = null
   private val handler = Handler(Looper.getMainLooper())
-  private var stopRunnable: Runnable? = null
-  private var style: String = STYLE_ALARM
+
+  /** One timer per kind, so a new firing cannot disarm the other's self-stop. */
+  private var alarmStop: Runnable? = null
+  private var soundStop: Runnable? = null
+
+  /**
+   * An absolute last resort, armed once and never rescheduled.
+   *
+   * The per-firing timers were shared, so a second firing removed the first's callback and the
+   * first could outlive every limit. This one answers "no matter what happened, is anything
+   * still making a noise fifteen minutes later?" with a full teardown.
+   */
+  private var backstop: Runnable? = null
 
   override fun onCreate() {
     super.onCreate()
@@ -191,28 +215,102 @@ class AlarmService : Service() {
     val vibrate = intent?.getBooleanExtra(EXTRA_VIBRATE, true) ?: true
     val requested = intent?.getIntExtra(EXTRA_DURATION_SECONDS, 60) ?: 60
     val duration = requested.coerceIn(5, MAX_DURATION_SECONDS)
-    style = intent?.getStringExtra(EXTRA_STYLE) ?: STYLE_ALARM
-    val sounding = style == STYLE_SOUND
+    val incoming = intent?.getStringExtra(EXTRA_STYLE) ?: STYLE_ALARM
 
-    if (sounding) {
-      startForeground(SOUND_NOTIFICATION_ID, buildReminderNotification(title, body))
-    } else {
-      startForeground(NOTIFICATION_ID, buildNotification(title, body))
+    armBackstop()
+
+    when {
+      /**
+       * A reminder's own sound arriving while an ALARM is ringing must not touch the alarm.
+       *
+       * It used to take the service over completely: it reassigned the style, called
+       * startForeground under a DIFFERENT notification id — which cancels the alarm's
+       * Stop-bearing notification — set isRinging to false so the in-app Stop banner
+       * disappeared, and then tore the whole service down when its file finished, while the
+       * alarm was still audibly looping. The louder, more urgent thing wins; the reminder
+       * still arrives, silently, as an ordinary notification.
+       */
+      incoming == STYLE_SOUND && isRinging -> postReminderBesideAlarm(title, body)
+
+      incoming == STYLE_SOUND -> startOwnSound(title, body, soundUri, duration, vibrate)
+
+      else -> startAlarm(title, body, soundUri, duration, vibrate)
     }
+  }
+
+  /** Ring, replacing any ring already in progress rather than layering on top of it. */
+  private fun startAlarm(
+    title: String,
+    body: String?,
+    soundUri: String?,
+    duration: Int,
+    vibrate: Boolean,
+  ) {
+    // Everything the previous ring owned goes first. Two alarms must never sound at once, and
+    // an unreleased player is one nothing can reach.
+    releaseAlarmRing()
+
+    startForeground(NOTIFICATION_ID, buildNotification(title, body))
     acquireWakeLock(duration)
-    startSound(soundUri)
-    if (vibrate) startVibration()
+    alarmPlayer = openPlayer(soundUri, alarm = true, loop = true, onComplete = null)
+    if (vibrate) startVibration(insistent = true)
 
-    // Only a real alarm is "ringing": that flag drives the stop button and the alarm screen.
-    // A reminder playing its own sound is an ordinary notification that happens to be audible.
-    isRinging = !sounding
-    publishRinging(isRinging)
+    isRinging = true
+    publishRinging(true)
 
-    // Always stops itself. A ringing alarm nobody silences must not run the battery flat.
-    stopRunnable?.let { handler.removeCallbacks(it) }
     val runnable = Runnable { stopEverything() }
-    stopRunnable = runnable
+    alarmStop = runnable
     handler.postDelayed(runnable, duration * 1000L)
+  }
+
+  /** Play a reminder's chosen file once, leaving the reminder in the notification shade. */
+  private fun startOwnSound(
+    title: String,
+    body: String?,
+    soundUri: String?,
+    duration: Int,
+    vibrate: Boolean,
+  ) {
+    releaseOwnSound()
+
+    /**
+     * The SAME foreground notification id as the alarm, deliberately.
+     *
+     * startForeground with a different id cancels the notification the service was previously
+     * showing — which was how a reminder sound could silently remove a ringing alarm's only
+     * Stop button from the shade.
+     */
+    startForeground(NOTIFICATION_ID, buildReminderNotification(title, body))
+    acquireWakeLock(duration)
+    soundPlayer = openPlayer(soundUri, alarm = false, loop = false) { finishSoundOnly() }
+    if (vibrate) startVibration(insistent = false)
+
+    val runnable = Runnable { finishSoundOnly() }
+    soundStop = runnable
+    handler.postDelayed(runnable, duration * 1000L)
+  }
+
+  /**
+   * A reminder that arrived mid-alarm: shown, not sounded.
+   *
+   * Its own notification id, posted through NotificationManager rather than startForeground,
+   * so nothing about the running alarm changes.
+   */
+  private fun postReminderBesideAlarm(title: String, body: String?) {
+    try {
+      (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+        .notify(SOUND_NOTIFICATION_ID, buildReminderNotification(title, body))
+    } catch (_: Exception) {
+      // A reminder that cannot be shown must not disturb the alarm that can be heard.
+    }
+  }
+
+  /** Fifteen minutes after the service first started, nothing is still making a noise. */
+  private fun armBackstop() {
+    if (backstop != null) return
+    val runnable = Runnable { stopEverything() }
+    backstop = runnable
+    handler.postDelayed(runnable, MAX_DURATION_SECONDS * 1000L)
   }
 
   /**
@@ -307,73 +405,114 @@ class AlarmService : Service() {
     return builder.build()
   }
 
-  private fun startSound(soundUri: String?) {
+  /**
+   * Build and start one player. Returns null if even the fallback tone will not open.
+   *
+   * A factory rather than a method that assigns a field: assigning over a live `player` was
+   * the bug that made an alarm unstoppable. The caller owns the reference and is responsible
+   * for releasing the previous one first.
+   */
+  private fun openPlayer(
+    soundUri: String?,
+    alarm: Boolean,
+    loop: Boolean,
+    onComplete: (() -> Unit)?,
+  ): MediaPlayer? {
     val uri: Uri = when {
       soundUri.isNullOrBlank() ->
         RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
           ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+          ?: return null
       else -> Uri.parse(soundUri)
     }
 
-    val sounding = style == STYLE_SOUND
-
     try {
-      player = MediaPlayer().apply {
+      return MediaPlayer().apply {
         setAudioAttributes(
           AudioAttributes.Builder()
             // An alarm uses the alarm stream, so it sounds when the phone is set to alarms
             // only. A reminder uses the notification stream, so it obeys Do Not Disturb the
             // way the user expects a reminder to.
             .setUsage(
-              if (sounding) AudioAttributes.USAGE_NOTIFICATION
-              else AudioAttributes.USAGE_ALARM,
+              if (alarm) AudioAttributes.USAGE_ALARM
+              else AudioAttributes.USAGE_NOTIFICATION,
             )
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
             .build(),
         )
         setDataSource(this@AlarmService, uri)
-        // An alarm repeats until someone stops it. A reminder plays its sound through once,
-        // however long that is, and then gets out of the way.
-        isLooping = !sounding
-        if (sounding) {
-          setOnCompletionListener { finishSoundOnly() }
-        }
+        isLooping = loop
+        if (onComplete != null) setOnCompletionListener { onComplete() }
         prepare()
         start()
       }
     } catch (_: Exception) {
-      // A missing or unreadable file must not leave a silent alarm pretending to ring: fall
-      // back to the system alarm tone rather than failing quietly.
-      if (soundUri != null) startSound(null)
+      /**
+       * A missing or unreadable file must not leave a silent alarm pretending to ring. Retry
+       * ONCE with the system tone — non-recursive on purpose, because the old recursive
+       * fallback re-entered a method that assigned the shared player field and could orphan a
+       * live one on the way through.
+       */
+      if (soundUri == null) return null
+      return try {
+        MediaPlayer().apply {
+          setAudioAttributes(
+            AudioAttributes.Builder()
+              .setUsage(
+                if (alarm) AudioAttributes.USAGE_ALARM
+                else AudioAttributes.USAGE_NOTIFICATION,
+              )
+              .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+              .build(),
+          )
+          val fallback = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            ?: return null
+          setDataSource(this@AlarmService, fallback)
+          isLooping = loop
+          if (onComplete != null) setOnCompletionListener { onComplete() }
+          prepare()
+          start()
+        }
+      } catch (_: Exception) {
+        null
+      }
     }
   }
 
-  /**
-   * End sound mode once the audio has played through, leaving the notification behind.
-   *
-   * `STOP_FOREGROUND_DETACH` is the whole point: the service goes away, the reminder stays in
-   * the shade. Removing it would mean a reminder that made a noise and then vanished before
-   * it could be read — the exact failure that makes people distrust an app like this.
-   */
-  private fun finishSoundOnly() {
-    stopRunnable?.let { handler.removeCallbacks(it) }
-    stopRunnable = null
-
-    try { player?.stop() } catch (_: Exception) {}
-    try { player?.release() } catch (_: Exception) {}
-    player = null
-
-    try { vibrator?.cancel() } catch (_: Exception) {}
-    vibrator = null
-
-    try { if (wakeLock?.isHeld == true) wakeLock?.release() } catch (_: Exception) {}
-    wakeLock = null
-
-    stopForeground(STOP_FOREGROUND_DETACH)
-    stopSelf()
+  /** Silence and free one player. Safe on null, safe twice, never throws. */
+  private fun release(player: MediaPlayer?) {
+    if (player == null) return
+    try { player.setOnCompletionListener(null) } catch (_: Exception) {}
+    try { player.stop() } catch (_: Exception) {}
+    try { player.release() } catch (_: Exception) {}
   }
 
-  private fun startVibration() {
+  /** Everything the current ALARM owns. */
+  private fun releaseAlarmRing() {
+    alarmStop?.let { handler.removeCallbacks(it) }
+    alarmStop = null
+    release(alarmPlayer)
+    alarmPlayer = null
+    try { vibrator?.cancel() } catch (_: Exception) {}
+    vibrator = null
+    releaseWakeLock()
+  }
+
+  /** Everything the current reminder SOUND owns. */
+  private fun releaseOwnSound() {
+    soundStop?.let { handler.removeCallbacks(it) }
+    soundStop = null
+    release(soundPlayer)
+    soundPlayer = null
+  }
+
+  private fun releaseWakeLock() {
+    try { if (wakeLock?.isHeld == true) wakeLock?.release() } catch (_: Exception) {}
+    wakeLock = null
+  }
+
+  private fun startVibration(insistent: Boolean) {
     val v = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
       (getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
     } else {
@@ -384,9 +523,8 @@ class AlarmService : Service() {
 
     // An alarm buzzes until it is stopped; a reminder buzzes once. Repeat index 0 means
     // "loop forever", and -1 means "play once" — the difference between the two modes.
-    val sounding = style == STYLE_SOUND
-    val pattern = if (sounding) longArrayOf(0, 220, 120, 220) else longArrayOf(0, 600, 400, 600, 400)
-    val repeat = if (sounding) -1 else 0
+    val pattern = if (insistent) longArrayOf(0, 600, 400, 600, 400) else longArrayOf(0, 220, 120, 220)
+    val repeat = if (insistent) 0 else -1
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
       v.vibrate(VibrationEffect.createWaveform(pattern, repeat))
     } else {
@@ -396,6 +534,8 @@ class AlarmService : Service() {
   }
 
   private fun acquireWakeLock(durationSeconds: Int) {
+    // Release first: assigning over a held, non-reference-counted lock leaked it.
+    releaseWakeLock()
     val power = getSystemService(Context.POWER_SERVICE) as PowerManager
     wakeLock = power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "DailyFlow:alarm").apply {
       setReferenceCounted(false)
@@ -404,30 +544,65 @@ class AlarmService : Service() {
     }
   }
 
+  /**
+   * End sound mode once the audio has played through, leaving the notification behind.
+   *
+   * `STOP_FOREGROUND_DETACH` is the whole point: the service goes away, the reminder stays in
+   * the shade. Removing it would mean a reminder that made a noise and then vanished before it
+   * could be read.
+   *
+   * The isRinging guard is not defensive padding. Without it, a reminder sound finishing while
+   * an ALARM was ringing called stopSelf() and destroyed the service mid-ring, leaving the
+   * alarm's player looping with no service, no notification, and no instance for any Stop to
+   * reach.
+   */
+  private fun finishSoundOnly() {
+    releaseOwnSound()
+    if (isRinging) return
+
+    releaseWakeLock()
+    stopForeground(STOP_FOREGROUND_DETACH)
+    stopSelf()
+  }
+
+  /**
+   * Silence everything this service has ever started, and go away.
+   *
+   * "Everything" is literal, and it is the fix for "it keeps sounding and there is no way to
+   * stop it". This used to reach only the single current player, so a player left behind by a
+   * second firing kept looping at alarm volume with nothing able to reach it — not the alarm
+   * screen, not the notification, not the app.
+   */
   private fun stopEverything() {
     val wasRinging = isRinging
     isRinging = false
-    stopRunnable?.let { handler.removeCallbacks(it) }
-    stopRunnable = null
 
-    try { player?.stop() } catch (_: Exception) {}
-    try { player?.release() } catch (_: Exception) {}
-    player = null
+    for (runnable in listOfNotNull(alarmStop, soundStop, backstop)) {
+      handler.removeCallbacks(runnable)
+    }
+    alarmStop = null
+    soundStop = null
+    backstop = null
+
+    release(alarmPlayer)
+    alarmPlayer = null
+    release(soundPlayer)
+    soundPlayer = null
 
     try { vibrator?.cancel() } catch (_: Exception) {}
     vibrator = null
 
-    try { if (wakeLock?.isHeld == true) wakeLock?.release() } catch (_: Exception) {}
-    wakeLock = null
+    releaseWakeLock()
 
     /**
-     * Clear the full-screen notification too. It is posted by AlarmReceiver, not by this
-     * service, so stopForeground does not touch it — a silenced alarm would otherwise leave a
-     * live-looking alarm sitting in the shade.
+     * Clear what the alarm put in the shade. The full-screen notification is posted by
+     * AlarmReceiver, not by this service, so stopForeground does not touch it — a silenced
+     * alarm would otherwise leave a live-looking alarm sitting there.
      */
     try {
-      (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
-        .cancel(FULL_SCREEN_NOTIFICATION_ID)
+      val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+      manager.cancel(FULL_SCREEN_NOTIFICATION_ID)
+      manager.cancel(SOUND_NOTIFICATION_ID)
     } catch (_: Exception) {
     }
 

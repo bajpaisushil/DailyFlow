@@ -37,8 +37,20 @@ export interface ChosenSound {
   uri: string
 }
 
-/** Roughly a minute of audio. Large enough for any alarm tone, small enough to keep. */
-const MAX_BYTES = 8 * 1024 * 1024
+/**
+ * The largest file a reminder's sound may be.
+ *
+ * 50 MB is roughly an hour of ordinary MP3, which comfortably covers a recorded message, a
+ * song, or a recitation — the things people actually attach. The limit exists at all because
+ * the file is COPIED into app storage and kept for the life of the reminder, so it is charged
+ * against the phone rather than borrowed; the storage screen shows what these are costing.
+ *
+ * It was 8 MB, which rejected most full-length tracks.
+ */
+const MAX_BYTES = 50 * 1024 * 1024
+
+/** For messages. Kept next to the limit so the two can never disagree. */
+export const MAX_SOUND_MB = Math.round(MAX_BYTES / (1024 * 1024))
 
 export type PickResult =
   | { ok: true; sound: ChosenSound }

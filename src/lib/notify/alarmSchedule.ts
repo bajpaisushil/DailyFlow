@@ -3,7 +3,7 @@ import { soundUri } from './customSound'
 import { alarmId, alarmOccurrences, ownSoundOccurrences, wantsOwnSound } from './alarmOccurrences'
 
 export {
-  alarmId, alarmOccurrences, ownSoundOccurrences, wantsOwnSound,
+  alarmId, alarmOccurrences, ownSoundOccurrences, wantsOwnSound, currentAlarmIds,
 } from './alarmOccurrences'
 import {
   alarmModuleAvailable, cancelScheduledAlarm, scheduleAlarm,
@@ -32,6 +32,13 @@ export interface AlarmSyncResult {
    * right sound, once from the OS with the wrong one.
    */
   ownSoundReminderIds: string[]
+  /**
+   * Every id genuinely handed to AlarmManager. Persisted by the caller and passed back as
+   * `previousIds` next time, so cancellation is driven by what WAS scheduled rather than by
+   * what the current reminders imply — the two diverge the moment a reminder is deleted,
+   * disabled, retimed, or changed from an alarm to a notification.
+   */
+  scheduledIds: string[]
 }
 
 /**
@@ -42,7 +49,10 @@ export interface AlarmSyncResult {
  */
 export function syncAlarms(reminders: Reminder[], previousIds: string[] = []): AlarmSyncResult {
   if (!alarmModuleAvailable()) {
-    return { scheduled: 0, exact: false, available: false, ownSoundReminderIds: [] }
+    return {
+      scheduled: 0, exact: false, available: false,
+      ownSoundReminderIds: [], scheduledIds: [],
+    }
   }
 
   for (const id of previousIds) cancelScheduledAlarm(id)
@@ -51,11 +61,13 @@ export function syncAlarms(reminders: Reminder[], previousIds: string[] = []): A
   let scheduled = 0
   let exact = true
   const ownSoundReminderIds: string[] = []
+  const scheduledIds: string[] = []
 
   for (const reminder of reminders) {
     for (const at of alarmOccurrences(reminder, now)) {
+      const id = alarmId(reminder.id, at)
       const outcome = scheduleAlarm({
-        id: alarmId(reminder.id, at),
+        id,
         at,
         title: reminder.title,
         body: reminder.message,
@@ -65,7 +77,10 @@ export function syncAlarms(reminders: Reminder[], previousIds: string[] = []): A
         style: 'alarm',
       })
       if (outcome === 'inexact') exact = false
-      if (outcome !== 'failed') scheduled += 1
+      if (outcome !== 'failed') {
+        scheduled += 1
+        scheduledIds.push(id)
+      }
     }
 
     /**
@@ -91,14 +106,14 @@ export function syncAlarms(reminders: Reminder[], previousIds: string[] = []): A
      */
     let anyScheduled = false
     for (const at of moments) {
+      const id = alarmId(reminder.id, at)
       const outcome = scheduleAlarm({
-        id: alarmId(reminder.id, at),
+        id,
         at,
         title: reminder.title,
         body: reminder.message,
         soundUri: uri,
-        // A backstop only: playback ends when the file does. This caps a file that turns out
-        // to be an hour long.
+        // A backstop only: playback ends when the file does.
         durationSeconds: MAX_OWN_SOUND_SECONDS,
         vibrate: reminder.vibrate,
         style: 'sound',
@@ -107,20 +122,20 @@ export function syncAlarms(reminders: Reminder[], previousIds: string[] = []): A
       if (outcome === 'failed') continue
       anyScheduled = true
       scheduled += 1
+      scheduledIds.push(id)
     }
     if (anyScheduled) ownSoundReminderIds.push(reminder.id)
   }
 
-  return { scheduled, exact, available: true, ownSoundReminderIds }
+  return { scheduled, exact, available: true, ownSoundReminderIds, scheduledIds }
 }
 
-/** However long the chosen file is, it stops here. Five minutes is already generous. */
-const MAX_OWN_SOUND_SECONDS = 5 * 60
-
-/** The ids currently scheduled, so the next sync can cancel them. */
-export function currentAlarmIds(reminders: Reminder[], from = new Date()): string[] {
-  return reminders.flatMap((r) => [
-    ...alarmOccurrences(r, from).map((at) => alarmId(r.id, at)),
-    ...ownSoundOccurrences(r, from).map((at) => alarmId(r.id, at)),
-  ])
-}
+/**
+ * The backstop, not the intended length.
+ *
+ * Playback normally ends when the FILE ends — the player stops itself on completion. This only
+ * catches a file that turns out to be enormous, and it matches the native service's own hard
+ * cap so the two cannot disagree. It was five minutes, which silently truncated anything
+ * longer even though files of up to 50 MB can now be chosen.
+ */
+const MAX_OWN_SOUND_SECONDS = 15 * 60

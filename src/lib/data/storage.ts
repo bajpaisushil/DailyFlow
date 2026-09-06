@@ -27,6 +27,7 @@ export interface StorageReport {
 /** Plain words for each table — the user never sees a collection name. */
 const LABELS: Record<store.Collection, string> = {
   settings: 'Your choices',
+  scheduledAlarms: 'Alarms set on the phone',
   places: S.nav.places,
   checklists: S.nav.lists,
   checklistRuns: 'Ticks',

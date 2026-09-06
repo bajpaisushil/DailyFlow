@@ -26,10 +26,20 @@ export type Collection =
   | 'commuteSessions'
   | 'activity'
   | 'firings'
+  /**
+   * The alarm ids actually handed to AlarmManager.
+   *
+   * Persisted rather than re-derived, because AlarmManager cannot be enumerated and a
+   * derivation reflects the CURRENT reminders — so deleting one, switching it off, moving its
+   * time or making it a plain notification left its alarms armed with nothing able to name
+   * them any more. They rang daily for a fortnight and no screen in the app could reach them.
+   */
+  | 'scheduledAlarms'
 
 const COLLECTIONS: Collection[] = [
   'settings', 'places', 'checklists', 'checklistRuns', 'routines', 'reminders',
   'automations', 'commuteProfiles', 'commuteSessions', 'activity', 'firings',
+  'scheduledAlarms',
 ]
 
 let dbRef: SQLite.SQLiteDatabase | null = null

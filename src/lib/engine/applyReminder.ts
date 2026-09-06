@@ -3,7 +3,7 @@ import * as repo from '@/lib/db/repo'
 import { compileReminder, staleReminderAutomationIds } from './compileReminder'
 import { resyncAll } from './apply'
 import { syncGeofences } from '@/lib/location/geofence'
-import { currentAlarmIds, syncAlarms } from '@/lib/notify/alarmSchedule'
+import { syncAlarms } from '@/lib/notify/alarmSchedule'
 
 /**
  * Saving a reminder, and turning it into something the phone will actually do.
@@ -73,9 +73,20 @@ export function resyncAlarms(): {
   ownSoundReminderIds: string[]
 } {
   const reminders = repo.reminders.all()
-  // Cancel by the ids we would have created, since AlarmManager cannot be enumerated.
-  const previous = currentAlarmIds(reminders)
+
+  /**
+   * Cancel what was ACTUALLY scheduled, read back from storage.
+   *
+   * This used to re-derive the ids from the current reminders, which can only name alarms the
+   * current configuration implies. Delete a reminder, switch it off, move its time, or change
+   * it from an alarm to a notification, and its armed alarms became unnameable — so they were
+   * never cancelled and went on ringing every day for the fortnight they were laid out for,
+   * with no screen in the app able to reach them.
+   */
+  const previous = repo.scheduledAlarms.read()
   const result = syncAlarms(reminders, previous)
+  repo.scheduledAlarms.write(result.scheduledIds)
+
   return {
     scheduled: result.scheduled,
     exact: result.exact,

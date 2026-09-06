@@ -6,7 +6,9 @@ import { Icon } from '@/components/ui/Icon'
 import { PressableScale } from '@/components/ui/PressableScale'
 import { Button } from '@/components/ui/Button'
 import { TONES, type ToneId } from '@/lib/notify/tones'
-import { pickSound, savedSounds, type ChosenSound } from '@/lib/notify/customSound'
+import {
+  pickSound, savedSounds, MAX_SOUND_MB, type ChosenSound,
+} from '@/lib/notify/customSound'
 import { alarmModuleAvailable } from '../../../modules/dailyflow-alarm'
 
 /**
@@ -111,7 +113,7 @@ export function SoundPicker({
       if (result.reason === 'cancelled') return
       setError(
         result.reason === 'tooLarge'
-          ? 'That file is too big. Choose one under about 8 MB.'
+          ? `That file is too big. Choose one under about ${MAX_SOUND_MB} MB.`
           : 'That file could not be used. Try another one.',
       )
       return

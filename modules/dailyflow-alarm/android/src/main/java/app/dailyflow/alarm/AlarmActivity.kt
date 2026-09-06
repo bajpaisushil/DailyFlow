@@ -1,6 +1,5 @@
 package app.dailyflow.alarm
 
-import android.app.KeyguardManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -67,17 +66,22 @@ class AlarmActivity : AppCompatActivity() {
   }
 
   private fun showOverLockScreen() {
+    /**
+     * Show over the lock screen, but do NOT ask to dismiss it.
+     *
+     * requestDismissKeyguard raises the PIN/pattern bouncer on top of this activity — so
+     * someone woken at 3am was asked to authenticate before they could reach the Stop button.
+     * Stopping an alarm needs no authentication, and demanding it at the one moment a person
+     * is least able to comply is the opposite of what this screen is for.
+     */
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
       setShowWhenLocked(true)
       setTurnScreenOn(true)
-      (getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager)
-        .requestDismissKeyguard(this, null)
     } else {
       @Suppress("DEPRECATION")
       window.addFlags(
         WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-          WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
-          WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD,
+          WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON,
       )
     }
     window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)

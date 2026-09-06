@@ -148,4 +148,28 @@ export const settings = {
   },
 }
 
+/**
+ * What AlarmManager is actually holding, as last handed to it.
+ *
+ * Cancellation used to be driven by re-deriving ids from the current reminders, which can
+ * only ever name alarms the CURRENT configuration implies. Anything scheduled under an older
+ * configuration — a reminder since deleted, disabled, retimed, or changed from alarm to
+ * notification — could never be named, so it was never cancelled and kept ringing.
+ */
+interface ScheduledAlarmRecord {
+  id: string
+  ids: string[]
+  updatedAt: number
+}
+
+export const scheduledAlarms = {
+  read: (): string[] => {
+    const found = store.get<ScheduledAlarmRecord>('scheduledAlarms', 'singleton')
+    return Array.isArray(found?.ids) ? found.ids : []
+  },
+  write: (ids: string[]): void => {
+    store.put('scheduledAlarms', { id: 'singleton', ids, updatedAt: Date.now() })
+  },
+}
+
 export { store }

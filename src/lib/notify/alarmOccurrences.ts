@@ -112,3 +112,18 @@ function timedOccurrences(
 
   return out.sort((a, b) => a - b).slice(0, MAX_ALARMS)
 }
+
+/**
+ * The ids the CURRENT reminders imply.
+ *
+ * Kept for tests and diagnostics only. It must NOT be used to decide what to cancel: it can
+ * only ever name alarms the present configuration would create, so anything scheduled before
+ * a delete, a disable, a retime or a switch to plain notifications is invisible to it and
+ * would stay armed. `repo.scheduledAlarms` is the record that drives cancellation.
+ */
+export function currentAlarmIds(reminders: Reminder[], from = new Date()): string[] {
+  return reminders.flatMap((r) => [
+    ...alarmOccurrences(r, from).map((at) => alarmId(r.id, at)),
+    ...ownSoundOccurrences(r, from).map((at) => alarmId(r.id, at)),
+  ])
+}

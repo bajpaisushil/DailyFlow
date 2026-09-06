@@ -1,6 +1,8 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { alarmId, alarmOccurrences, ownSoundOccurrences, wantsOwnSound } from './alarmOccurrences.ts'
+import {
+  alarmId, alarmOccurrences, ownSoundOccurrences, wantsOwnSound, currentAlarmIds,
+} from './alarmOccurrences.ts'
 import { nativeFirings, nextNativeFirings } from './nativeFirings.ts'
 import type { Reminder, Weekday } from '../types.ts'
 
@@ -206,5 +208,53 @@ describe('nativeFirings', () => {
 
   it('caps the list, because nobody reads forty rows', () => {
     assert.equal(nextNativeFirings([reminder()], 5, from).length, 5)
+  })
+})
+
+/**
+ * Cancelling what was ACTUALLY scheduled.
+ *
+ * The bug: cancellation re-derived the ids from the CURRENT reminders. That can only ever name
+ * alarms the present configuration would create — so deleting a reminder, switching it off,
+ * moving its time, or changing it from an alarm to a plain notification left its armed alarms
+ * unnameable. They were never cancelled and rang every day for the fortnight they were laid
+ * out for, and nothing in the app could reach them.
+ *
+ * These assert the property that makes the fix work: the id set derived from a CHANGED
+ * reminder does not overlap the set that was really scheduled, which is exactly why the
+ * derivation could never be used for cancellation.
+ */
+describe('stale alarm cancellation', () => {
+  const armed = reminder({ times: ['07:00'], alertStyle: 'alarm' })
+  const scheduled = alarmOccurrences(armed, from, 14).map((at) => alarmId(armed.id, at))
+
+  it('schedules a fortnight of alarms, all of which need cancelling later', () => {
+    assert.ok(scheduled.length >= 14)
+  })
+
+  it('a deleted reminder derives NO ids, so nothing would have been cancelled', () => {
+    // removeReminder drops the reminder first, so the derivation sees an empty list.
+    const derived = currentAlarmIds([], from)
+    assert.deepEqual(derived, [])
+    assert.ok(scheduled.length > 0, 'yet these were armed and would have kept ringing')
+  })
+
+  it('a disabled reminder derives NO ids', () => {
+    assert.deepEqual(currentAlarmIds([reminder({ ...armed, enabled: false })], from), [])
+  })
+
+  it('a retimed reminder derives ids that were never scheduled', () => {
+    const retimed = currentAlarmIds([reminder({ ...armed, times: ['09:00'] })], from)
+    for (const id of retimed) {
+      assert.ok(!scheduled.includes(id), `${id} was never armed, so cancelling it does nothing`)
+    }
+  })
+
+  it('switching alarm to notification derives NO ids', () => {
+    // The reminder still exists at the same time, which is what makes this one so easy to miss.
+    assert.deepEqual(
+      currentAlarmIds([reminder({ ...armed, alertStyle: 'notification' })], from),
+      [],
+    )
   })
 })

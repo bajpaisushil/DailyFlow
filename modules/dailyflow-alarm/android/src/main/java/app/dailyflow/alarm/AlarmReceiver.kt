@@ -135,8 +135,53 @@ class AlarmReceiver : BroadcastReceiver() {
       // Only an alarm takes over the screen. In sound mode the service posts the reminder
       // itself, so posting one here too would show the same thing twice.
       style == AlarmService.STYLE_ALARM ->
-        postFullScreenNotification(context, title, body, soundUri, duration, vibrate)
+        showAlarm(context, title, body, soundUri, duration, vibrate)
       !started -> postPlainNotification(context, title, body)
+    }
+  }
+
+  /**
+   * Put the alarm on screen.
+   *
+   * Normally through a notification carrying a full-screen intent. But if the user has denied
+   * notifications, or switched the alarm channel off, that notification is never shown — and
+   * since the Stop button lives on it and on the screen it launches, the alarm would sound
+   * with NO control anywhere on the device. So when notifications are off we start the alarm
+   * screen directly, which an exact-alarm broadcast is permitted to do.
+   */
+  private fun showAlarm(
+    context: Context,
+    title: String,
+    body: String?,
+    soundUri: String?,
+    duration: Int,
+    vibrate: Boolean,
+  ) {
+    val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    val allowed = try {
+      manager.areNotificationsEnabled()
+    } catch (_: Exception) {
+      true
+    }
+
+    if (allowed) {
+      postFullScreenNotification(context, title, body, soundUri, duration, vibrate)
+      return
+    }
+
+    try {
+      context.startActivity(
+        Intent(context, AlarmActivity::class.java).apply {
+          addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+          putExtra(AlarmActivity.EXTRA_TITLE, title)
+          putExtra(AlarmActivity.EXTRA_BODY, body)
+          putExtra(AlarmService.EXTRA_SOUND_URI, soundUri)
+          putExtra(AlarmService.EXTRA_DURATION_SECONDS, duration)
+          putExtra(AlarmService.EXTRA_VIBRATE, vibrate)
+        },
+      )
+    } catch (_: Exception) {
+      // Nothing more can be done to show it; the service's own duration cap still stops it.
     }
   }
 
