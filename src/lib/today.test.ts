@@ -80,7 +80,7 @@ describe('buildToday — reminders on the timeline', () => {
   const reminder = (over: Partial<Reminder> = {}): Reminder => ({
     id: 'rem1', title: 'Take my medicine', icon: 'pills', enabled: true,
     times: ['09:00'], days: [1, 2, 3, 4, 5] as Weekday[], placeTriggers: [], leadMinutes: [0],
-    priority: 'normal', sound: true, vibrate: true,
+    priority: 'normal', alertStyle: 'notification', sound: true, vibrate: true,
     createdAt: 0, updatedAt: 0, ...over,
   })
 

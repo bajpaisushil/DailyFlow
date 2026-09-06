@@ -1,5 +1,6 @@
 import type { Automation, NotificationPriority, Weekday } from '@/lib/types'
 import { parseHHMM } from '@/lib/time'
+import { courseOccurrences } from '@/lib/course'
 
 /**
  * The scheduling maths, deliberately free of both React Native and expo-notifications.
@@ -17,6 +18,8 @@ export const MAX_PENDING = 56
 export type TriggerPlan =
   | { every: 'day'; hour: number; minute: number }
   | { every: 'week'; weekday: Weekday; hour: number; minute: number }
+  /** A single dated occurrence, used for reminders that run for a fixed period. */
+  | { every: 'once'; at: number }
 
 export interface ScheduledPlan {
   /** Stable identifier, so a plan can be reasoned about without an OS handle. */
@@ -25,6 +28,8 @@ export interface ScheduledPlan {
   title: string
   body?: string
   priority: NotificationPriority
+  /** 'alarm' routes to the loud channel that can wake someone. */
+  alertStyle?: 'notification' | 'alarm'
   when: TriggerPlan
 }
 
@@ -33,7 +38,7 @@ export interface ScheduledPlan {
  * automation cannot be expressed as a fixed clock time — location and state triggers are
  * handled by the geofence and the in-app engine instead.
  */
-export function planFor(automation: Automation): ScheduledPlan[] {
+export function planFor(automation: Automation, now = new Date()): ScheduledPlan[] {
   if (!automation.enabled) return []
   if (automation.trigger.kind !== 'time.at') return []
 
@@ -65,6 +70,30 @@ export function planFor(automation: Automation): ScheduledPlan[] {
     title: notify.params.title,
     body: notify.params.body,
     priority: notify.params.priority,
+    alertStyle: notify.params.alertStyle,
+  }
+
+  /**
+   * A bounded rule becomes one dated notification per occurrence, so it stops on its own.
+   * A repeating DAILY/WEEKLY trigger would outlive the course and keep firing after the
+   * medicine ran out, which is precisely how people learn to ignore reminders.
+   */
+  if (automation.window) {
+    const occurrences = courseOccurrences(
+      {
+        times: [automation.trigger.params.time],
+        days,
+        startsOn: automation.window.from,
+        endsOn: automation.window.until,
+        leadMinutes: [0],
+      },
+      now,
+    )
+    return occurrences.map((o, i) => ({
+      ...base,
+      key: `${automation.id}:once:${i}`,
+      when: { every: 'once' as const, at: o.at },
+    }))
   }
 
   // Seven days collapses to one daily trigger — a 7x saving against the pending budget.

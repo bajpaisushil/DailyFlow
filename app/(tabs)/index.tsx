@@ -149,27 +149,12 @@ export default function TodayScreen() {
         </Animated.View>
       ) : null}
 
-      {/* What to remember */}
-      {model.checklists.length > 0 ? (
-        <Animated.View entering={FadeInDown.delay(120).springify().damping(18).stiffness(140)}>
-          <Text variant="heading" style={styles.sectionTitle}>
-            {S.today.takeWithYou}
-          </Text>
-          {model.checklists.map((entry) => (
-            <ChecklistCard
-              key={entry.checklist.id}
-              entry={entry}
-              onToggle={(itemId) => toggleItem(entry.checklist.id, itemId)}
-            />
-          ))}
-        </Animated.View>
-      ) : null}
-
-      {/* The rest of the day */}
+      {/* What is coming up — reminders and day plans together. This is the
+          question Today exists to answer, so it comes before the packing list. */}
       {model.entries.length > 0 ? (
         <Animated.View entering={FadeInDown.delay(180).springify().damping(18).stiffness(140)}>
           <Text variant="heading" style={styles.sectionTitle}>
-            {S.nav.today}
+            {'Rest of today'}
           </Text>
           <Card padded={false} style={{ paddingVertical: space.xs }}>
             {model.entries.map((e) => {
@@ -208,6 +193,22 @@ export default function TodayScreen() {
               )
             })}
           </Card>
+        </Animated.View>
+      ) : null}
+
+      {/* Only after the day is laid out: what to carry. */}
+      {model.checklists.length > 0 ? (
+        <Animated.View entering={FadeInDown.delay(120).springify().damping(18).stiffness(140)}>
+          <Text variant="heading" style={styles.sectionTitle}>
+            {S.today.takeWithYou}
+          </Text>
+          {model.checklists.map((entry) => (
+            <ChecklistCard
+              key={entry.checklist.id}
+              entry={entry}
+              onToggle={(itemId) => toggleItem(entry.checklist.id, itemId)}
+            />
+          ))}
         </Animated.View>
       ) : null}
 

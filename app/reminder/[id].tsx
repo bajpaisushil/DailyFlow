@@ -19,8 +19,11 @@ import { useData } from '@/stores/data'
 import { newId } from '@/lib/id'
 import { applyReminder, removeReminder } from '@/lib/engine/applyReminder'
 import { notificationsAvailable, readPermission, requestPermission } from '@/lib/notify/scheduler'
-import type { NotificationPriority, PlaceTrigger, Reminder, Weekday } from '@/lib/types'
+import type { AlertStyle, NotificationPriority, PlaceTrigger, Reminder, Weekday } from '@/lib/types'
 import { formatTime, WEEKDAYS_MON_FRI } from '@/lib/time'
+import { describeCourse, endDateAfterDays, occurrenceCount } from '@/lib/course'
+import { APPROACH_SPEEDS } from '@/lib/types'
+import { describeApproach } from '@/lib/location/approach'
 import { useSettings } from '@/stores/settings'
 import { font, radius, space } from '@/theme/tokens'
 import { useColors } from '@/theme/ThemeProvider'
@@ -67,6 +70,8 @@ export default function ReminderEditor() {
   const [checklistId, setChecklistId] = useState(existing?.checklistId)
   const [priority, setPriority] = useState<NotificationPriority>(existing?.priority ?? 'normal')
   const [vibrate, setVibrate] = useState(existing?.vibrate ?? true)
+  const [alertStyle, setAlertStyle] = useState<AlertStyle>(existing?.alertStyle ?? 'notification')
+  const [endsOn, setEndsOn] = useState(existing?.endsOn)
   const [sound, setSound] = useState(existing?.sound ?? true)
 
   const [addingTime, setAddingTime] = useState(false)
@@ -92,6 +97,17 @@ export default function ReminderEditor() {
     })
   }, [])
 
+  /** How far ahead of arriving to warn — "wake me six minutes before my stop". */
+  const setApproach = useCallback((placeId: string, minutes: number | undefined, kmh: number) => {
+    setPlaceTriggers((prev) =>
+      prev.map((t) =>
+        t.placeId === placeId && t.on === 'arrive'
+          ? { ...t, approachMinutes: minutes, approachSpeedKmh: kmh }
+          : t,
+      ),
+    )
+  }, [])
+
   const canSave = title.trim().length > 0 && (times.length > 0 || placeTriggers.length > 0)
 
   const onDone = useCallback(async () => {
@@ -112,10 +128,12 @@ export default function ReminderEditor() {
       enabled: existing?.enabled ?? true,
       times,
       days,
+      endsOn,
       placeTriggers,
       leadMinutes: leads,
       checklistId,
       priority,
+      alertStyle,
       sound,
       vibrate,
       createdAt: existing?.createdAt ?? now,
@@ -128,7 +146,7 @@ export default function ReminderEditor() {
     router.back()
   }, [
     canSave, saving, reach, existing, title, icon, times, days,
-    placeTriggers, leads, checklistId, priority, sound, vibrate, refresh, router,
+    placeTriggers, leads, checklistId, priority, alertStyle, sound, vibrate, endsOn, refresh, router,
   ])
 
   return (
@@ -224,6 +242,44 @@ export default function ReminderEditor() {
             <DayPicker value={days} onChange={setDays} />
           </View>
 
+          <Text variant="heading" style={styles.section}>For how long?</Text>
+          <View style={styles.chips}>
+            {([
+              { label: 'Keep going', days: 0 },
+              { label: '3 days', days: 3 },
+              { label: '1 week', days: 7 },
+              { label: '2 weeks', days: 14 },
+              { label: '1 month', days: 30 },
+            ] as const).map((option) => {
+              const value = option.days === 0 ? undefined : endDateAfterDays(new Date(), option.days)
+              const active = option.days === 0 ? !endsOn : endsOn === value
+              return (
+                <PressableScale
+                  key={option.label}
+                  onPress={() => setEndsOn(value)}
+                  depth="sm"
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={option.label}
+                  style={[styles.chip, { backgroundColor: active ? c.accent : c.surfaceAlt }]}
+                >
+                  <Text variant="label" style={{ color: active ? c.onAccent : c.inkMuted }}>
+                    {option.label}
+                  </Text>
+                </PressableScale>
+              )
+            })}
+          </View>
+          {endsOn ? (
+            <Text variant="caption" tone="muted" style={{ marginBottom: space.xl }}>
+              {describeCourse({ times, endsOn })}
+              {'. '}
+              {occurrenceCount({ times, days, endsOn, leadMinutes: leads }, new Date())} reminders in total.
+            </Text>
+          ) : (
+            <View style={{ marginBottom: space.xl }} />
+          )}
+
           <Text variant="heading" style={styles.section}>How early should I tell you?</Text>
           <View style={{ marginBottom: space.xl }}>
             <LeadTimePicker value={leads} onChange={setLeads} />
@@ -277,6 +333,97 @@ export default function ReminderEditor() {
                     onPress={() => togglePlace(place.id, 'leave')}
                   />
                 </View>
+
+                {/* Warn BEFORE arriving. Not a time offset — there is no clock time to
+                    subtract from — but a bigger circle around the place. Speed is asked
+                    because six minutes of walking and six on a metro are very different
+                    distances. */}
+                {arriving ? (
+                  <View style={styles.approach}>
+                    <Text variant="caption" tone="muted">Tell me before I get there</Text>
+                    <View style={styles.chips}>
+                      {[undefined, 2, 5, 6, 10].map((minutes) => {
+                        const trigger = placeTriggers.find(
+                          (t) => t.placeId === place.id && t.on === 'arrive',
+                        )
+                        const active = (trigger?.approachMinutes ?? undefined) === minutes
+                        return (
+                          <PressableScale
+                            key={String(minutes)}
+                            onPress={() =>
+                              setApproach(place.id, minutes, trigger?.approachSpeedKmh ?? 45)
+                            }
+                            depth="sm"
+                            accessibilityRole="radio"
+                            accessibilityState={{ selected: active }}
+                            accessibilityLabel={minutes ? `${minutes} minutes before` : 'On arrival'}
+                            style={[
+                              styles.smallChip,
+                              { backgroundColor: active ? c.accent : c.canvasDeep },
+                            ]}
+                          >
+                            <Text
+                              variant="label"
+                              style={{ color: active ? c.onAccent : c.inkMuted, fontSize: 13 }}
+                            >
+                              {minutes ? `${minutes} min` : 'On arrival'}
+                            </Text>
+                          </PressableScale>
+                        )
+                      })}
+                    </View>
+
+                    {placeTriggers.find((t) => t.placeId === place.id && t.on === 'arrive')
+                      ?.approachMinutes ? (
+                      <>
+                        <View style={styles.chips}>
+                          {Object.entries(APPROACH_SPEEDS).map(([key, speed]) => {
+                            const trigger = placeTriggers.find(
+                              (t) => t.placeId === place.id && t.on === 'arrive',
+                            )
+                            const active = (trigger?.approachSpeedKmh ?? 45) === speed.kmh
+                            return (
+                              <PressableScale
+                                key={key}
+                                onPress={() =>
+                                  setApproach(place.id, trigger?.approachMinutes, speed.kmh)
+                                }
+                                depth="sm"
+                                accessibilityRole="radio"
+                                accessibilityState={{ selected: active }}
+                                accessibilityLabel={speed.label}
+                                style={[
+                                  styles.smallChip,
+                                  { backgroundColor: active ? c.accentSoft : c.canvasDeep },
+                                ]}
+                              >
+                                <Icon
+                                  name={speed.icon as IconName}
+                                  size={15}
+                                  color={active ? c.accent : c.inkFaint}
+                                />
+                                <Text
+                                  variant="label"
+                                  style={{ color: active ? c.accent : c.inkMuted, fontSize: 13 }}
+                                >
+                                  {speed.label}
+                                </Text>
+                              </PressableScale>
+                            )
+                          })}
+                        </View>
+                        <Text variant="caption" tone="faint">
+                          {describeApproach(
+                            placeTriggers.find(
+                              (t) => t.placeId === place.id && t.on === 'arrive',
+                            )!,
+                            place.radiusM,
+                          )}
+                        </Text>
+                      </>
+                    ) : null}
+                  </View>
+                ) : null}
               </Card>
             )
           })}
@@ -316,6 +463,47 @@ export default function ReminderEditor() {
       {/* 5 — How loud */}
       <Text variant="heading" style={styles.section}>How should it reach you?</Text>
       <View style={{ gap: space.sm, marginBottom: space.lg }}>
+        {/* An alarm is for the case where sleeping through it defeats the point — waking
+            before your stop, or medicine that cannot be missed. */}
+        <View style={styles.styleRow}>
+          {([
+            { key: 'notification' as const, label: 'A message', icon: 'bell' as const,
+              help: 'A normal reminder' },
+            { key: 'alarm' as const, label: 'An alarm', icon: 'clock' as const,
+              help: 'Loud, to wake you' },
+          ]).map((option) => {
+            const active = alertStyle === option.key
+            return (
+              <PressableScale
+                key={option.key}
+                onPress={() => setAlertStyle(option.key)}
+                depth="sm"
+                accessibilityRole="radio"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={`${option.label}. ${option.help}`}
+                style={{ flex: 1 }}
+              >
+                <Card tone={active ? 'raised' : 'flat'} style={[
+                  styles.styleCard,
+                  active && { backgroundColor: c.accentSoft },
+                ]}>
+                  <IconBadge
+                    name={option.icon}
+                    plate={44}
+                    size={22}
+                    background={active ? c.accent : undefined}
+                    color={active ? c.onAccent : undefined}
+                  />
+                  <Text variant="heading" style={{ color: active ? c.accent : c.ink }}>
+                    {option.label}
+                  </Text>
+                  <Text variant="caption" tone="muted">{option.help}</Text>
+                </Card>
+              </PressableScale>
+            )
+          })}
+        </View>
+
         <Toggle label="Make a sound" icon="speak" value={sound} onChange={setSound} />
         <Toggle label={S.settings.vibrate} icon="phone" value={vibrate} onChange={setVibrate} />
         <Toggle
@@ -407,4 +595,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.lg, paddingVertical: space.md,
     borderRadius: radius.lg, minHeight: 64,
   },
+  approach: { paddingHorizontal: space.lg, paddingTop: space.md, gap: space.sm },
+  smallChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: space.md, minHeight: 40, borderRadius: radius.pill,
+  },
+  styleRow: { flexDirection: 'row', gap: space.md, marginBottom: space.sm },
+  styleCard: { alignItems: 'flex-start', gap: space.sm, minHeight: 140 },
 })

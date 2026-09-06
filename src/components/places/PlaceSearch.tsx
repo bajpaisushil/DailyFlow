@@ -109,9 +109,14 @@ export function PlaceSearch({ onChoose, onResults, selected }: Props) {
 
       {searched && !searching && results.length === 0 ? (
         <Text variant="caption" tone="muted" style={{ paddingHorizontal: space.lg }}>
-          Nothing found. Check the spelling, or use “I am here now”.
+          Nothing found. Try adding the town or city, or use “I am here now”.
         </Text>
       ) : null}
+
+      {/* Said where it applies, not buried in a settings screen. */}
+      <Text variant="caption" tone="faint" style={{ paddingHorizontal: space.lg, marginTop: space.xs }}>
+        Only the words you type here are sent, to look up the place.
+      </Text>
     </View>
   )
 }

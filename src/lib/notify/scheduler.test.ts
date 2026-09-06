@@ -130,7 +130,7 @@ describe('planFor', () => {
         conditions: [{ kind: 'day.isOneOf', params: { days: [1, 2, 3, 4, 5] } }],
       }),
     )
-    const total = many.flatMap(planFor).length
+    const total = many.flatMap((a) => planFor(a)).length
     assert.equal(total, 50)
     assert.ok(total <= MAX_PENDING, `${total} plans exceeds the ${MAX_PENDING} budget`)
   })

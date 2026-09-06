@@ -247,7 +247,7 @@ export const S = {
     removeHold: 'Press and hold to remove everything',
     privacy: 'What DailyFlow knows about you',
     privacyBody:
-      'Everything you put in DailyFlow stays on this phone. There is no account. Nothing is sent to the internet. DailyFlow does not work with any company. If you remove the app, everything goes with it.',
+      'Everything you put in DailyFlow stays on this phone. There is no account, and your reminders, places and history are never sent anywhere. The one exception: when you search for a place by name, the words you type are sent to a map service to find it. Nothing else goes with them. If you remove the app, everything goes with it.',
     worksOffline: 'Works without internet',
   },
 
@@ -264,7 +264,7 @@ export const S = {
   welcome: {
     hello: 'This is DailyFlow',
     line1: 'It remembers your day for you.',
-    line2: 'Everything stays on this phone.',
+    line2: 'Your reminders stay on this phone.',
     start: 'Start',
     pickOne: 'What do you want help with first?',
     pickOneHelp: 'You can change this later.',

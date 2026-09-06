@@ -78,6 +78,11 @@ export function compileReminder(
         trigger: { kind: 'time.at', params: { time: fireAt } },
         conditions: dayCondition,
         match: 'all',
+        // A bounded reminder carries its window through, so the scheduler can lay out dated
+        // occurrences that expire rather than a rule that repeats forever.
+        window: reminder.endsOn
+          ? { from: reminder.startsOn, until: reminder.endsOn }
+          : undefined,
         actions: [{
           kind: 'notify',
           params: {
@@ -86,6 +91,7 @@ export function compileReminder(
             priority: reminder.priority,
             includeChecklistId: reminder.checklistId,
             vibrate: reminder.vibrate,
+            alertStyle: reminder.alertStyle,
           },
         }],
         limits: { maxPerDay: 1 },
@@ -112,6 +118,7 @@ export function compileReminder(
           priority: reminder.priority,
           includeChecklistId: reminder.checklistId,
           vibrate: reminder.vibrate,
+          alertStyle: reminder.alertStyle,
         },
       }],
       limits: { cooldownMinutes: 30, maxPerDay: 3 },

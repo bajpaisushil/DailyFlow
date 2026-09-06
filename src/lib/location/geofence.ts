@@ -6,6 +6,7 @@ import { supportsBackgroundGeofencing } from '@/lib/runtime'
 import { decide, record } from '@/lib/engine/governance'
 import { notifyNow } from '@/lib/notify/scheduler'
 import { localDateKey } from '@/lib/time'
+import { approachRadiusMetres } from './approach'
 
 /**
  * Background geofencing.
@@ -125,6 +126,25 @@ export function regionsToWatch(places: Place[], automations: Automation[]): Loca
       .map((a) => (a.trigger as { params: { placeId: string } }).params.placeId),
   )
 
+  /**
+   * The largest circle any reminder asks for around each place.
+   *
+   * "Wake me six minutes before my stop" is a four-kilometre circle, not a hundred-metre one,
+   * so the region handed to the OS has to be the widest one requested — otherwise the control
+   * exists in the UI and does nothing in reality.
+   */
+  const approachByPlace = new Map<string, number>()
+  for (const reminder of repo.reminders.all()) {
+    if (!reminder.enabled) continue
+    for (const trigger of reminder.placeTriggers) {
+      if (trigger.on !== 'arrive' || !trigger.approachMinutes) continue
+      const place = places.find((p) => p.id === trigger.placeId)
+      if (!place) continue
+      const radius = approachRadiusMetres(trigger, place.radiusM)
+      approachByPlace.set(place.id, Math.max(approachByPlace.get(place.id) ?? 0, radius))
+    }
+  }
+
   const ranked = [...places].sort((a, b) => {
     const score = (p: Place) => (referenced.has(p.id) ? 2 : p.pinned ? 1 : 0)
     return score(b) - score(a)
@@ -134,9 +154,10 @@ export function regionsToWatch(places: Place[], automations: Automation[]): Loca
     identifier: p.id,
     latitude: p.lat,
     longitude: p.lon,
-    // A small inflation absorbs ordinary GPS error, so arriving is detected reliably
-    // without making the region so loose that it fires from the next street.
-    radius: Math.max(80, p.radiusM),
+    // A small inflation absorbs ordinary GPS error, so arriving is detected reliably without
+    // making the region so loose that it fires from the next street. An approach request
+    // overrides it entirely — that circle is meant to be large.
+    radius: Math.max(80, approachByPlace.get(p.id) ?? p.radiusM),
     notifyOnEnter: true,
     notifyOnExit: true,
   }))

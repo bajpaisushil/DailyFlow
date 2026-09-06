@@ -8,7 +8,7 @@ function reminder(over: Partial<Reminder> = {}): Reminder {
     id: 'r1', title: 'Leave for work', icon: 'work', enabled: true,
     times: ['08:00'], days: [1, 2, 3, 4, 5],
     placeTriggers: [], leadMinutes: [0],
-    priority: 'normal', sound: true, vibrate: true,
+    priority: 'normal', alertStyle: 'notification', sound: true, vibrate: true,
     createdAt: 0, updatedAt: 0, ...over,
   }
 }

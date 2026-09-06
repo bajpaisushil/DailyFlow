@@ -28,6 +28,8 @@ export type { ScheduledPlan, TriggerPlan } from './plan'
 
 export const CHANNEL_ID = 'reminders'
 export const CHANNEL_QUIET = 'reminders-quiet'
+/** Maximum importance, alarm audio stream, bypasses Do Not Disturb. */
+export const CHANNEL_ALARM = 'reminders-alarm'
 
 export type PermissionState = 'granted' | 'denied' | 'undetermined'
 
@@ -117,6 +119,29 @@ export async function ensureChannels(vibrate: boolean): Promise<void> {
       enableVibrate: false,
       lockscreenVisibility: N.AndroidNotificationVisibility.PRIVATE,
     })
+
+    /**
+     * The alarm channel, for reminders where sleeping through it defeats the purpose —
+     * waking before your stop, or medicine that cannot be missed.
+     *
+     * MAX importance so it appears over whatever is on screen, a long insistent vibration,
+     * and `bypassDnd` so it still sounds when the phone is set to allow alarms only. Android
+     * fixes a channel's importance at creation time and the user owns it afterwards, which is
+     * correct: if they turn this one down, we must not turn it back up.
+     */
+    await N.setNotificationChannelAsync(CHANNEL_ALARM, {
+      name: 'Alarms',
+      importance: N.AndroidImportance.MAX,
+      vibrationPattern: [0, 600, 300, 600, 300, 600],
+      enableVibrate: true,
+      bypassDnd: true,
+      lockscreenVisibility: N.AndroidNotificationVisibility.PUBLIC,
+      audioAttributes: {
+        usage: N.AndroidAudioUsage.ALARM,
+        contentType: N.AndroidAudioContentType.SONIFICATION,
+        flags: { enforceAudibility: true, requestHardwareAudioVideoSynchronization: false },
+      },
+    })
   } catch {
     // A channel that cannot be created simply means the default is used.
   }
@@ -124,6 +149,11 @@ export async function ensureChannels(vibrate: boolean): Promise<void> {
 
 /** expo-notifications counts weekdays 1..7 starting at Sunday; our model uses 0..6. */
 function toNativeTrigger(N: NotificationsModule, when: TriggerPlan) {
+  // A bounded course schedules each occurrence as its own dated notification, so it expires
+  // on its own rather than depending on us to switch it off later.
+  if (when.every === 'once') {
+    return { type: N.SchedulableTriggerInputTypes.DATE, date: new Date(when.at) } as const
+  }
   if (when.every === 'day') {
     return {
       type: N.SchedulableTriggerInputTypes.DAILY,
@@ -167,7 +197,7 @@ export async function syncSchedules(
   try {
     await N.cancelAllScheduledNotificationsAsync()
 
-    const plans = automations.flatMap(planFor)
+    const plans = automations.flatMap((a) => planFor(a))
     const budgeted = plans.slice(0, MAX_PENDING)
 
     for (const plan of budgeted) {
@@ -182,6 +212,18 @@ export async function syncSchedules(
               : plan.priority === 'quiet'
                 ? N.AndroidNotificationPriority.LOW
                 : N.AndroidNotificationPriority.HIGH,
+          // An alarm goes to its own maximum-importance channel with the alarm audio
+          // stream, so it sounds when the phone is set to allow alarms only.
+          ...(Platform.OS === 'android'
+            ? {
+                channelId:
+                  plan.alertStyle === 'alarm'
+                    ? CHANNEL_ALARM
+                    : plan.priority === 'quiet'
+                      ? CHANNEL_QUIET
+                      : CHANNEL_ID,
+              }
+            : {}),
           // Carried through so a tap can open the right screen and the engine can log it.
           data: { automationId: plan.automationId, key: plan.key },
         },

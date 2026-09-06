@@ -182,6 +182,19 @@ is one tap and Done, with no typing at all.
 The map needs a development build (`expo-maps` is a native module, absent from Expo Go) and a
 Google Maps key on Android. GPS and search work everywhere, including fully offline for GPS.
 
+## The one network request
+
+DailyFlow makes exactly one, and only when you ask for it: searching for a place by name.
+
+Turning "sikanderpur" into coordinates needs a map of the world, which no phone carries. So
+those words — and nothing else — go to an OpenStreetMap search service. No identifier, no
+saved places, no history, no reminders. GPS ("I am here now") needs no network at all, and
+neither does anything else in the app.
+
+This is stated on the search field itself and in Settings. The app previously claimed nothing
+was ever sent anywhere; when place search was added, that claim stopped being true, so it was
+changed rather than quietly left in place.
+
 ## Your data
 
 - **Save a copy** — writes a JSON backup and hands it to the share sheet. Where it goes is
