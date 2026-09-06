@@ -158,3 +158,47 @@ reads the *real* permission state at runtime and never claims more than the phon
 asked for. When they later asked for map input it was added as an *additional* path — GPS
 remains the default and the only one that works with no network, so the offline guarantee is
 intact and the map is a pure enhancement.
+
+
+---
+
+# Session 2 — the reminder rebuild
+
+| # | Requirement | Status |
+|---|-------------|--------|
+| 59 | Choose a location from a **list** of results and see it **on a map** | done — list of candidates, all plotted as pins, chosen one ticked |
+| 60 | Build a **shareable APK** | done — `./scripts/build-apk.sh`, signed locally, 61 MB |
+| 61 | Restructure around **reminders**, not my data model | done — tabs are Today · Reminders · Places · More |
+| 62 | Reminder with **many times and many places** | done — a Reminder compiles to one automation per time × lead × place |
+| 63 | **Custom lead time** ("23 minutes before leaving for temple") | done — preset chips plus any value, several at once |
+| 64 | **Uber-style address entry** for places | done — search first, address stored and shown, Home/Work slots |
+| 65 | **Alarm as well as notification** | done — own Android channel, MAX importance, alarm audio, bypasses DND |
+| 66 | **Both** alarm and message selectable together | done — early warnings stay quiet, the one at the real moment rings |
+| 67 | **Frequency with an end** ("3× a day for 1 week") | done — bounded courses schedule dated occurrences and expire on their own |
+| 68 | **Wake me N minutes before reaching** a place | done — an approach circle, not a time offset; 6 min at metro speed = 4.5 km |
+| 69 | **Auto-detect travel speed**, don't ask walk/car/metro | done — learned from GPS per place, rolling average, middling default |
+| 70 | Today must show **reminders**, not the packing list | done — and fixed the cause: daily-reset lists were showing unconditionally |
+| 71 | Place search must find **"sikanderpur"** | done — OpenStreetMap search, biased to current position |
+| 72 | Drop **"On the way"** | done — a place-triggered reminder does the same job with nothing to press |
+| 73 | A **visible** button to add a place | done — the header plus had no word, breaking the app's own icon rule |
+| 74 | Real **time picker**, any minute (9:02, not 15-min chips) | done — the OS picker, with round-time shortcuts above it |
+| 75 | **Sticky save button** with validation, not a Done at the top | done — `SaveBar` says what is missing rather than greying out silently |
+| 76 | **Edit a reminder's time** | done — the row opens the picker; before, you had to delete and re-add |
+
+## Bugs found and fixed in this session
+
+| What | Why it happened |
+|------|-----------------|
+| Crash on every screen in Expo Go | `expo-notifications` throws on IMPORT there; I guarded usage, not import |
+| Crash in Commute and History | `Intl.RelativeTimeFormat` is undefined on Hermes |
+| Today was a wall of packing lists | lists showed if they reset daily, regardless of relevance |
+| APK was 108 MB | `ndk.abiFilters` is not the lever; React Native uses `reactNativeArchitectures` |
+| Release APK nearly shipped debug-signed | my own config plugin's regex assigned the keys backwards |
+| Primary button failed WCAG AA | the test checked the solid accent; the button is painted with the gradient |
+
+## The privacy claim changed, deliberately
+
+Adding place search made DailyFlow issue its first network request. The app used to say
+"nothing is ever sent to the internet". That would have become a lie, so it now says exactly
+what is sent (the words you type), when (only while searching), and what is not (everything
+else) — on the search field itself, not buried in settings.

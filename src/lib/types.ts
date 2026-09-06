@@ -196,8 +196,12 @@ export interface ActionParamMap {
     /** Names the checklist's unchecked items inline in the body. */
     includeChecklistId?: Id
     vibrate?: boolean
-    /** Routes to the alarm channel on Android when set to 'alarm'. */
-    alertStyle?: AlertStyle
+    /**
+     * Routes to the alarm channel on Android when 'alarm'. Already RESOLVED — a reminder's
+     * 'both' is decided per firing at compile time, so no downstream code has to reason
+     * about which of the two a given notification should be.
+     */
+    alertStyle?: 'notification' | 'alarm'
   }
   'checklist.show': { checklistId: Id }
   'checklist.reset': { checklistId: Id }
@@ -300,14 +304,17 @@ export const APPROACH_SPEEDS: Record<string, { label: string; kmh: number; icon:
 }
 
 /**
- * How loudly a reminder should arrive.
+ * How a reminder arrives.
  *
- * `alarm` is for the case where sleeping through it defeats the point — waking before your
- * stop, or medicine that cannot be missed. It uses a separate Android channel at maximum
- * importance with the alarm audio stream, so it sounds even when the phone is set to only
- * allow alarms through.
+ * `alarm` is for when sleeping through it defeats the point — waking before your stop, or
+ * medicine that cannot be missed. It goes to a separate Android channel at maximum importance
+ * on the alarm audio stream, so it sounds even when the phone allows only alarms through.
+ *
+ * `both` is not a louder alarm; it is the sensible combination. Early warnings arrive as
+ * ordinary messages and the firing at the actual time rings as an alarm — a nudge half an
+ * hour before your stop should not blare, but the one that wakes you must.
  */
-export type AlertStyle = 'notification' | 'alarm'
+export type AlertStyle = 'notification' | 'alarm' | 'both'
 
 export interface Reminder extends BaseRecord {
   /** What the notification says. This is the whole point, so it comes first. */

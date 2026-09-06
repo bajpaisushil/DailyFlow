@@ -14,6 +14,7 @@ import { DayPicker } from '@/components/ui/DayPicker'
 import { TimePicker } from '@/components/ui/TimePicker'
 import { IconPicker } from '@/components/ui/IconPicker'
 import { CapabilityBadge, type Reach } from '@/components/ui/CapabilityBadge'
+import { SaveBar, SAVE_BAR_CLEARANCE } from '@/components/ui/SaveBar'
 import { LeadTimePicker } from '@/components/reminders/LeadTimePicker'
 import { useData } from '@/stores/data'
 import { newId } from '@/lib/id'
@@ -75,6 +76,8 @@ export default function ReminderEditor() {
 
   const [addingTime, setAddingTime] = useState(false)
   const [draftTime, setDraftTime] = useState('08:00')
+  /** The time currently being changed, or null when adding a new one. */
+  const [editingTime, setEditingTime] = useState<string | null>(null)
   const [reach, setReach] = useState<Reach>('needsAllow')
   const [saving, setSaving] = useState(false)
 
@@ -107,7 +110,14 @@ export default function ReminderEditor() {
     )
   }, [])
 
-  const canSave = title.trim().length > 0 && (times.length > 0 || placeTriggers.length > 0)
+  /** Says what is missing, rather than leaving a dead button to be puzzled over. */
+  const blockedReason =
+    title.trim().length === 0
+      ? 'Say what you want to be reminded about'
+      : times.length === 0 && placeTriggers.length === 0
+        ? 'Add a time, or a place to be reminded at'
+        : null
+  const canSave = blockedReason == null
 
   const onDone = useCallback(async () => {
     if (!canSave || saving) return
@@ -149,12 +159,9 @@ export default function ReminderEditor() {
   ])
 
   return (
-    <Screen>
-      <DetailHeader
-        title={isNew ? 'New reminder' : (existing?.title ?? 'Reminder')}
-        onDone={() => void onDone()}
-        disabled={!canSave || saving}
-      />
+    <>
+    <Screen bottomInset={SAVE_BAR_CLEARANCE}>
+      <DetailHeader title={isNew ? 'New reminder' : (existing?.title ?? 'Reminder')} />
 
       {/* 1 — What should it say */}
       <Text variant="heading" style={styles.section}>What should I remind you about?</Text>
@@ -192,9 +199,22 @@ export default function ReminderEditor() {
       <View style={{ gap: space.sm, marginBottom: space.md }}>
         {times.map((t) => (
           <Animated.View key={t} layout={LinearTransition.duration(180)} entering={FadeIn}>
-            <View style={[styles.timeRow, { backgroundColor: c.surfaceAlt }]}>
+            {/* The whole row opens the picker. Without this, changing 9:00 to 9:15 meant
+                deleting the time and adding it again. */}
+            <PressableScale
+              depth="sm"
+              onPress={() => {
+                setEditingTime(t)
+                setDraftTime(t)
+                setAddingTime(true)
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={`${formatTime(t, use24h, locale)}. Tap to change.`}
+              style={[styles.timeRow, { backgroundColor: c.surfaceAlt }]}
+            >
               <IconBadge name="clock" plate={40} size={20} />
               <Text variant="body" style={{ flex: 1 }}>{formatTime(t, use24h, locale)}</Text>
+              <Text variant="label" style={{ color: c.accent }}>Change</Text>
               <PressableScale
                 onPress={() => setTimes((prev) => prev.filter((x) => x !== t))}
                 accessibilityRole="button"
@@ -203,7 +223,7 @@ export default function ReminderEditor() {
               >
                 <Icon name="close" size={20} color={c.inkFaint} />
               </PressableScale>
-            </View>
+            </PressableScale>
           </Animated.View>
         ))}
 
@@ -211,13 +231,25 @@ export default function ReminderEditor() {
           <Card tone="flat">
             <TimePicker value={draftTime} onChange={setDraftTime} />
             <View style={styles.addActions}>
-              <Button label={S.action.goBack} variant="quiet" onPress={() => setAddingTime(false)} />
               <Button
-                label={S.action.add}
+                label={S.action.goBack}
+                variant="quiet"
+                onPress={() => {
+                  setAddingTime(false)
+                  setEditingTime(null)
+                }}
+              />
+              <Button
+                label={editingTime ? S.action.done : S.action.add}
                 icon="check"
                 onPress={() => {
-                  setTimes((prev) => [...new Set([...prev, draftTime])].sort())
+                  setTimes((prev) => {
+                    // Editing replaces the original; adding just appends.
+                    const without = editingTime ? prev.filter((x) => x !== editingTime) : prev
+                    return [...new Set([...without, draftTime])].sort()
+                  })
                   setAddingTime(false)
+                  setEditingTime(null)
                 }}
               />
             </View>
@@ -228,7 +260,11 @@ export default function ReminderEditor() {
             icon="plus"
             variant="secondary"
             full
-            onPress={() => setAddingTime(true)}
+            onPress={() => {
+              setEditingTime(null)
+              setDraftTime('08:00')
+              setAddingTime(true)
+            }}
           />
         )}
       </View>
@@ -432,13 +468,20 @@ export default function ReminderEditor() {
             { key: 'alarm' as const, label: 'An alarm', icon: 'clock' as const,
               help: 'Loud, to wake you' },
           ]).map((option) => {
-            const active = alertStyle === option.key
+            const active = alertStyle === option.key || alertStyle === 'both'
             return (
               <PressableScale
                 key={option.key}
-                onPress={() => setAlertStyle(option.key)}
+                onPress={() => {
+                  // Both are independently selectable. Choosing both means the early
+                  // warnings stay quiet and only the one at the real moment rings.
+                  const other = option.key === 'alarm' ? 'notification' : 'alarm'
+                  if (alertStyle === 'both') setAlertStyle(other)
+                  else if (alertStyle === option.key) setAlertStyle(option.key)
+                  else setAlertStyle('both')
+                }}
                 depth="sm"
-                accessibilityRole="radio"
+                accessibilityRole="checkbox"
                 accessibilityState={{ selected: active }}
                 accessibilityLabel={`${option.label}. ${option.help}`}
                 style={{ flex: 1 }}
@@ -493,6 +536,14 @@ export default function ReminderEditor() {
         />
       ) : null}
     </Screen>
+
+    <SaveBar
+      label={isNew ? 'Add reminder' : 'Save changes'}
+      blockedReason={blockedReason}
+      busy={saving}
+      onPress={() => void onDone()}
+    />
+    </>
   )
 }
 

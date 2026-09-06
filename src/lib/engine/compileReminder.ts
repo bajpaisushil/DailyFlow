@@ -32,6 +32,18 @@ function checklistLine(reminder: Reminder, checklists: Checklist[]): string | un
   return `Take your ${required.join(', ')}.`
 }
 
+/**
+ * Which style a particular firing uses.
+ *
+ * With `both`, the lead-time warnings stay quiet messages and only the firing at the real
+ * moment rings — a warning half an hour ahead that blares is a warning people switch off.
+ */
+function styleForFiring(reminder: Reminder, leadMinutes: number): 'notification' | 'alarm' {
+  if (reminder.alertStyle === 'alarm') return 'alarm'
+  if (reminder.alertStyle === 'both') return leadMinutes <= 0 ? 'alarm' : 'notification'
+  return 'notification'
+}
+
 export function compileReminder(
   reminder: Reminder,
   checklists: Checklist[],
@@ -91,7 +103,7 @@ export function compileReminder(
             priority: reminder.priority,
             includeChecklistId: reminder.checklistId,
             vibrate: reminder.vibrate,
-            alertStyle: reminder.alertStyle,
+            alertStyle: styleForFiring(reminder, lead),
           },
         }],
         limits: { maxPerDay: 1 },
@@ -118,7 +130,8 @@ export function compileReminder(
           priority: reminder.priority,
           includeChecklistId: reminder.checklistId,
           vibrate: reminder.vibrate,
-          alertStyle: reminder.alertStyle,
+          // A place trigger has no lead-time concept, so it uses the reminder's own style.
+          alertStyle: reminder.alertStyle === 'notification' ? 'notification' : 'alarm',
         },
       }],
       limits: { cooldownMinutes: 30, maxPerDay: 3 },
