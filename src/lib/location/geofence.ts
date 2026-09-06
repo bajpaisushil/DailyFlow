@@ -1,12 +1,15 @@
 import * as Location from 'expo-location'
 import * as TaskManager from 'expo-task-manager'
-import type { Automation, Place } from '@/lib/types'
+import type { Automation, Place, Reminder } from '@/lib/types'
 import * as repo from '@/lib/db/repo'
 import { supportsBackgroundGeofencing } from '@/lib/runtime'
 import { decide, record } from '@/lib/engine/governance'
 import { notifyNow } from '@/lib/notify/scheduler'
 import { localDateKey } from '@/lib/time'
 import { approachRadiusMetres } from './approach'
+import { parseRegionId, radiiForPlace, radiusForTrigger, regionId } from './regions'
+
+export { parseRegionId, radiiForPlace, regionId } from './regions'
 
 /**
  * Background geofencing.
@@ -40,10 +43,9 @@ if (supportsBackgroundGeofencing) {
     if (error || !data?.region?.identifier) return
 
     const entering = data.eventType === Location.GeofencingEventType.Enter
-    const placeId = data.region.identifier
 
     try {
-      await handleRegionEvent(placeId, entering)
+      await handleRegionEvent(data.region.identifier, entering)
     } catch {
       // A failure here must never crash the background task; the miss is simply not recorded.
     }
@@ -54,7 +56,8 @@ if (supportsBackgroundGeofencing) {
  * Runs in the background, possibly with no UI alive. It reads straight from SQLite rather
  * than any React store, because no store exists in this context.
  */
-async function handleRegionEvent(placeId: string, entering: boolean): Promise<void> {
+async function handleRegionEvent(identifier: string, entering: boolean): Promise<void> {
+  const { placeId, radiusM } = parseRegionId(identifier)
   const place = repo.places.get(placeId)
   if (!place) return
 
@@ -65,9 +68,32 @@ async function handleRegionEvent(placeId: string, entering: boolean): Promise<vo
   })
 
   const wanted = entering ? 'place.enter' : 'place.exit'
+  const reminders = repo.reminders.all()
+
+  /**
+   * Only the reminders that asked for THIS circle.
+   *
+   * Without this, crossing the widest circle fired every reminder on the place — so an
+   * "when I arrive" reminder went off kilometres away because some other reminder wanted an
+   * early warning.
+   */
+  const matchesRadius = (automation: Automation): boolean => {
+    if (radiusM == null) return true
+    const reminder = reminders.find((r) => r.id === automation.sourceReminderId)
+    if (!reminder) return true
+
+    const trigger = reminder.placeTriggers.find(
+      (t) => t.placeId === placeId && t.on === (entering ? 'arrive' : 'leave'),
+    )
+    if (!trigger) return true
+
+    return Math.round(radiusForTrigger(place, trigger)) === radiusM
+  }
+
   const matching = repo.automations
     .all()
     .filter((a) => a.enabled && a.trigger.kind === wanted && a.trigger.params.placeId === placeId)
+    .filter(matchesRadius)
 
   if (matching.length === 0) return
 
@@ -139,6 +165,16 @@ function passesDayConditions(automation: Automation, weekday: number): boolean {
 }
 
 /** Places worth monitoring, most useful first, capped to the platform limit. */
+/**
+ * The regions to hand to the OS.
+ *
+ * ONE REGION PER DISTINCT RADIUS, not one per place. A single circle sized by the widest
+ * request meant that if one reminder asked to be woken six minutes before the office (a
+ * 4.5 km circle) and another simply said "when I arrive at the office", BOTH fired at
+ * 4.5 km — so the arrival reminder went off while the user was still three stops away.
+ * Each request now gets its own circle, and `handleRegionEvent` only fires the reminders
+ * that asked for the circle that was actually crossed.
+ */
 export function regionsToWatch(places: Place[], automations: Automation[]): Location.LocationRegion[] {
   const referenced = new Set(
     automations
@@ -146,41 +182,30 @@ export function regionsToWatch(places: Place[], automations: Automation[]): Loca
       .map((a) => (a.trigger as { params: { placeId: string } }).params.placeId),
   )
 
-  /**
-   * The largest circle any reminder asks for around each place.
-   *
-   * "Wake me six minutes before my stop" is a four-kilometre circle, not a hundred-metre one,
-   * so the region handed to the OS has to be the widest one requested — otherwise the control
-   * exists in the UI and does nothing in reality.
-   */
-  const approachByPlace = new Map<string, number>()
-  for (const reminder of repo.reminders.all()) {
-    if (!reminder.enabled) continue
-    for (const trigger of reminder.placeTriggers) {
-      if (trigger.on !== 'arrive' || !trigger.approachMinutes) continue
-      const place = places.find((p) => p.id === trigger.placeId)
-      if (!place) continue
-      const radius = approachRadiusMetres(trigger, place.radiusM)
-      approachByPlace.set(place.id, Math.max(approachByPlace.get(place.id) ?? 0, radius))
-    }
-  }
+  const reminders = repo.reminders.all()
 
   const ranked = [...places].sort((a, b) => {
     const score = (p: Place) => (referenced.has(p.id) ? 2 : p.pinned ? 1 : 0)
     return score(b) - score(a)
   })
 
-  return ranked.slice(0, MAX_REGIONS).map((p) => ({
-    identifier: p.id,
-    latitude: p.lat,
-    longitude: p.lon,
-    // A small inflation absorbs ordinary GPS error, so arriving is detected reliably without
-    // making the region so loose that it fires from the next street. An approach request
-    // overrides it entirely — that circle is meant to be large.
-    radius: Math.max(80, approachByPlace.get(p.id) ?? p.radiusM),
-    notifyOnEnter: true,
-    notifyOnExit: true,
-  }))
+  const regions: Location.LocationRegion[] = []
+  for (const place of ranked) {
+    for (const radius of radiiForPlace(place, reminders)) {
+      // The platform cap is a hard limit, so stop rather than let the OS silently drop the
+      // tail of the list.
+      if (regions.length >= MAX_REGIONS) return regions
+      regions.push({
+        identifier: regionId(place.id, radius),
+        latitude: place.lat,
+        longitude: place.lon,
+        radius,
+        notifyOnEnter: true,
+        notifyOnExit: true,
+      })
+    }
+  }
+  return regions
 }
 
 export interface GeofenceStatus {
