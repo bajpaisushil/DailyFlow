@@ -4,6 +4,7 @@ import { compileReminder, staleReminderAutomationIds } from './compileReminder'
 import { resyncAll } from './apply'
 import { syncGeofences } from '@/lib/location/geofence'
 import { syncAlarms } from '@/lib/notify/alarmSchedule'
+import { cancelScheduledAlarm, cancelSnoozedAlarm } from '../../../modules/dailyflow-alarm'
 
 /**
  * Saving a reminder, and turning it into something the phone will actually do.
@@ -92,6 +93,23 @@ export function resyncAlarms(): {
     exact: result.exact,
     ownSoundReminderIds: result.ownSoundReminderIds,
   }
+}
+
+/**
+ * Disarm every alarm the phone is holding for us.
+ *
+ * Needed before wiping the app: the ledger of scheduled ids lives in the database, so clearing
+ * the database first destroys the only record of what to cancel. AlarmManager cannot be
+ * enumerated, so those alarms would then be permanently unreachable — ringing for as long as
+ * they were laid out for, up to four years for a yearly reminder, with the reminder itself
+ * gone and no screen in the app able to name them.
+ */
+export function cancelAllAlarms(): void {
+  for (const id of repo.scheduledAlarms.read()) cancelScheduledAlarm(id)
+  repo.scheduledAlarms.write([])
+  // A snooze is armed under a fixed code the ledger never sees, so it needs saying separately
+  // — otherwise erasing everything still leaves one alarm due to ring in five minutes.
+  cancelSnoozedAlarm()
 }
 
 /** Removes a reminder and everything it generated. */

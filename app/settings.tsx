@@ -14,6 +14,7 @@ import { useData } from '@/stores/data'
 import { useTheme } from '@/theme/ThemeProvider'
 import { openSavedCopy, removeEverything, saveCopy } from '@/lib/data/backup'
 import { resyncAll } from '@/lib/engine/apply'
+import { cancelAllAlarms, resyncAlarms } from '@/lib/engine/applyReminder'
 import { syncGeofences } from '@/lib/location/geofence'
 import { cancelAll } from '@/lib/notify/scheduler'
 import type { ThemePreference } from '@/lib/types'
@@ -84,7 +85,19 @@ export default function SettingsScreen() {
               // Geofences must be re-armed too. Without this the OS kept watching the region
               // list from BEFORE the import, so every restored place reminder was dead until
               // the app happened to be restarted — with nothing saying so.
-              const [schedule, geofence] = await Promise.all([resyncAll(), syncGeofences()])
+              /**
+               * Alarms must be re-laid too, and BEFORE the notification schedule.
+               *
+               * Without this the OS kept the alarms armed from before the import while none of
+               * the imported ones were armed at all — so a restored backup looked complete and
+               * silently rang the wrong things. Alarms go first because that pass decides which
+               * reminders play their own sound natively, which the notification pass must skip.
+               */
+              const alarms = resyncAlarms()
+              const [schedule, geofence] = await Promise.all([
+                resyncAll(alarms.ownSoundReminderIds),
+                syncGeofences(),
+              ])
               Alert.alert(
                 S.action.done,
                 `Your things are back. ${schedule.scheduled} reminder${schedule.scheduled === 1 ? '' : 's'} set, ${geofence.watched} place${geofence.watched === 1 ? '' : 's'} being watched.`,
@@ -111,6 +124,10 @@ export default function SettingsScreen() {
           text: S.action.remove,
           style: 'destructive',
           onPress: () => {
+            // Disarm FIRST. removeEverything clears the database, and the ledger of what
+            // AlarmManager is holding lives there — wipe it first and those alarms can never
+            // be cancelled by anything, ever.
+            cancelAllAlarms()
             removeEverything()
             void cancelAll()
             refresh()

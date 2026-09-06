@@ -348,7 +348,16 @@ class AlarmService : Service() {
       )
     }
 
-    return Notification.Builder(this, SOUND_CHANNEL_ID)
+    /**
+     * A Stop here too.
+     *
+     * This sound can run for as long as the file lasts, up to the fifteen-minute cap, and it
+     * had no stop control anywhere: it is not an "alarm", so isRinging stays false and the
+     * in-app banner never appears, and there is no alarm screen for a plain reminder. The
+     * user's only option was to wait it out.
+     */
+    return builderFor(SOUND_CHANNEL_ID)
+      .addAction(stopAction())
       .setContentTitle(title)
       .apply {
         if (!body.isNullOrBlank()) setContentText(body)
@@ -379,7 +388,7 @@ class AlarmService : Service() {
       PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
 
-    return Notification.Builder(this, CHANNEL_ID)
+    return builderFor(CHANNEL_ID)
       .setContentTitle(title)
       .setContentText(body ?: "Tap to stop")
       .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
@@ -391,6 +400,22 @@ class AlarmService : Service() {
       .addAction(stopAction())
       .build()
   }
+
+  /**
+   * A notification builder that works on every version this module supports.
+   *
+   * `Notification.Builder(Context, String)` is API 26. minSdk here is 24, and this was called
+   * unguarded — so on Android 7.0 and 7.1 the very first alarm threw NoSuchMethodError inside
+   * the foreground service and took the app down with it. Every alarm, every time, on those
+   * phones. AlarmReceiver already guarded the same call; this file did not.
+   */
+  private fun builderFor(channelId: String): Notification.Builder =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      Notification.Builder(this, channelId)
+    } else {
+      @Suppress("DEPRECATION")
+      Notification.Builder(this)
+    }
 
   /** The Stop button attached to every notification an alarm puts on screen. */
   private fun stopAction(): Notification.Action {
@@ -600,9 +625,16 @@ class AlarmService : Service() {
      * alarm would otherwise leave a live-looking alarm sitting there.
      */
     try {
-      val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-      manager.cancel(FULL_SCREEN_NOTIFICATION_ID)
-      manager.cancel(SOUND_NOTIFICATION_ID)
+      /**
+       * Only the ALARM's own notification is cleared.
+       *
+       * SOUND_NOTIFICATION_ID is a reminder the user still has to read — it was posted because
+       * something was due, not because an alarm was ringing. Cancelling it here meant silencing
+       * an alarm also deleted an unrelated reminder that had no other way of reaching them.
+       * The sound stops either way; the words stay.
+       */
+      (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+        .cancel(FULL_SCREEN_NOTIFICATION_ID)
     } catch (_: Exception) {
     }
 
@@ -618,9 +650,23 @@ class AlarmService : Service() {
     }
   }
 
+  /**
+   * Tear down only what belongs to THIS instance.
+   *
+   * `instance` was nulled unconditionally and stopEverything() run in full. If a newer service
+   * instance had already taken over — which happens whenever Android recreates the service —
+   * the dying one would null the live instance's static reference and cancel the live alarm's
+   * notifications, stripping every Stop control off an alarm that was still ringing.
+   */
   override fun onDestroy() {
-    instance = null
-    stopEverything()
+    if (instance === this) {
+      instance = null
+      stopEverything()
+    } else {
+      // A stale instance: free its own resources and touch nothing global.
+      releaseAlarmRing()
+      releaseOwnSound()
+    }
     super.onDestroy()
   }
 }

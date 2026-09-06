@@ -84,6 +84,29 @@ class AlarmReceiver : BroadcastReceiver() {
 
     /** Distinct from every scheduled alarm's code, so a snooze cannot overwrite one. */
     private const val SNOOZE_REQUEST_CODE = 0xB0B
+
+    /**
+     * Cancel a pending snooze.
+     *
+     * A snooze is armed under a fixed request code, so nothing in the app's normal
+     * cancel-by-id path could ever name it — it would still ring five minutes later even after
+     * the user had erased everything. Only one snooze can be pending at a time, which is what
+     * makes a single fixed code safe to cancel outright.
+     */
+    fun cancelSnooze(context: Context): Boolean = try {
+      val manager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+      manager.cancel(
+        PendingIntent.getBroadcast(
+          context,
+          SNOOZE_REQUEST_CODE,
+          Intent(context, AlarmReceiver::class.java).setAction(ACTION_FIRE),
+          PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        ),
+      )
+      true
+    } catch (_: Exception) {
+      false
+    }
     private const val CHANNEL_ID = "dailyflow-fullscreen-alarm"
     private const val FALLBACK_CHANNEL_ID = "dailyflow-sound-fallback"
   }

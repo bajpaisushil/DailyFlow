@@ -214,6 +214,10 @@ class DailyFlowAlarmModule : Module() {
       true
     }
 
+    Function("cancelSnooze") {
+      AlarmReceiver.cancelSnooze(context)
+    }
+
     Function("stop") {
       // stopNow works from any state and never throws. The previous startService could be
       // refused outright when the app was in the background.

@@ -62,6 +62,7 @@ interface AlarmModule extends NativeModule<AlarmEvents> {
     style: FiringStyle | null,
   ): boolean
   cancelScheduled(id: string): boolean
+  cancelSnooze(): boolean
   canScheduleExact(): boolean
   openExactAlarmSettings(): boolean
 }
@@ -210,6 +211,20 @@ export function scheduleAlarm(input: {
     return exact ? 'exact' : 'inexact'
   } catch {
     return 'failed'
+  }
+}
+
+/**
+ * Cancel a pending snooze.
+ *
+ * A snooze is armed under a fixed request code that the cancel-by-id path can never name, so
+ * without this it would still ring five minutes later even after everything was erased.
+ */
+export function cancelSnoozedAlarm(): void {
+  try {
+    native?.cancelSnooze()
+  } catch {
+    // No module, or nothing pending.
   }
 }
 
