@@ -52,6 +52,26 @@ npx expo run:android --device
 npx expo run:ios --device
 ```
 
+### Build a shareable APK
+
+Everything happens on your machine — no Expo account, no cloud build, nothing uploaded:
+
+```bash
+./scripts/build-apk.sh
+```
+
+It produces `DailyFlow.apk` in the project root. Send that file to anyone; they may need to
+allow "install from unknown sources" once.
+
+To include the map on Android, pass a Google Maps key (iOS uses Apple Maps and needs none):
+
+```bash
+GOOGLE_MAPS_API_KEY=... ./scripts/build-apk.sh
+```
+
+**Keep `dailyflow-release.keystore`.** An update can only replace an installed app if it is
+signed with the same key. It is gitignored, so back it up somewhere yourself.
+
 ### Other commands
 
 ```bash
@@ -141,6 +161,26 @@ text-free interfaces:
 Icons never appear without their word.
 
 ---
+
+## Choosing a place
+
+Three ways, because one method does not fit every situation:
+
+| | How | Offline? |
+|---|---|---|
+| **I am here now** | GPS, one tap | ✅ |
+| **Search a place** | Type a name or address | ❌ |
+| **Show on map** | Tap the map to move the pin | ❌ |
+
+Search goes through the phone's own geocoder, so there is no API key and no service of ours
+in the path. When it returns several places with the same name, they are all drawn on the map
+at once — where they are is usually the only thing that tells them apart.
+
+Whenever the pin moves, the address is looked up and offered as the name, so the common flow
+is one tap and Done, with no typing at all.
+
+The map needs a development build (`expo-maps` is a native module, absent from Expo Go) and a
+Google Maps key on Android. GPS and search work everywhere, including fully offline for GPS.
 
 ## Your data
 

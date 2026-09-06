@@ -148,3 +148,13 @@ changed as a result — for the better:
 
 The honesty requirements (#34, #36) still hold and are enforced by `CapabilityBadge`, which
 reads the *real* permission state at runtime and never claims more than the phone will do.
+
+| 57 | **Choose a location from a list and see it on a map** | msg 22 | done — geocoder search returns a tappable list; every candidate is plotted on the map so same-named places can be told apart |
+| 58 | **Build a shareable APK** | msg 23 | done — `./scripts/build-apk.sh`, signed with a real key, built locally with no Expo account |
+
+## Note on requirement #49
+
+"No map-tile dependency" was my own derivation from the offline rule, not something the user
+asked for. When they later asked for map input it was added as an *additional* path — GPS
+remains the default and the only one that works with no network, so the offline guarantee is
+intact and the map is a pure enhancement.

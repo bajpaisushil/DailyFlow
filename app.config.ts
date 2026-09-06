@@ -55,7 +55,8 @@ const config: ExpoConfig = {
       ]
     },
     "plugins": [
-      "expo-router",
+      "./plugins/withReleaseSigning",
+    "expo-router",
     [
       "expo-splash-screen",
       {

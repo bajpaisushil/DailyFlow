@@ -43,3 +43,11 @@ yarn-error.*
 # Local secrets — the Google Maps key is read from the environment, never committed.
 .env
 .env.local
+
+# Generated native projects (Expo CNG regenerates these from app.config.ts).
+/android
+/ios
+
+# Signing key and its credentials — never committed.
+*.keystore
+!android/app/debug.keystore
