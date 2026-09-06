@@ -51,22 +51,6 @@ const RELEASE_SIGNING = `${SIGNING_ANCHOR}
             }
         }`
 
-/**
- * Ship only the ABIs real phones use.
- *
- * A universal APK carries four native library sets. x86 and x86_64 exist for emulators —
- * Intel Android phones are effectively extinct — and together they were 47 MB of a 108 MB
- * APK that no physical device would ever load.
- */
-const ABI_ANCHOR = `    defaultConfig {
-        applicationId`
-
-const ABI_BLOCK = `    defaultConfig {
-        ndk {
-            abiFilters 'arm64-v8a', 'armeabi-v7a'
-        }
-        applicationId`
-
 function withReleaseSigning(config) {
   config = withGradleProperties(config, (cfg) => {
     const entries = [
@@ -74,8 +58,31 @@ function withReleaseSigning(config) {
       ['DAILYFLOW_UPLOAD_KEY_ALIAS', process.env.DAILYFLOW_KEY_ALIAS || 'dailyflow'],
       ['DAILYFLOW_UPLOAD_STORE_PASSWORD', process.env.DAILYFLOW_KEYSTORE_PASSWORD || 'dailyflow'],
       ['DAILYFLOW_UPLOAD_KEY_PASSWORD', process.env.DAILYFLOW_KEY_PASSWORD || 'dailyflow'],
-      // Removes unused resources only; it does not touch code, so it cannot break behaviour.
-      ['android.enableShrinkResourcesInReleaseBuilds', 'true'],
+      /**
+       * Ship only the architectures real phones use.
+       *
+       * THIS is the lever, not `ndk.abiFilters` in build.gradle — React Native's Gradle
+       * plugin compiles its native libraries per architecture from this property, so an
+       * abiFilters block silently changes nothing and the x86 libraries get built anyway.
+       * (Learned the slow way: an APK that was still 108 MB after "filtering".)
+       *
+       * x86 and x86_64 exist for emulators. Intel Android phones are effectively extinct, and
+       * together those two were 47 MB of a 108 MB APK that no physical device would load.
+       */
+      ['reactNativeArchitectures', 'armeabi-v7a,arm64-v8a'],
+      /**
+       * Resource shrinking is deliberately OFF.
+       *
+       * Gradle refuses it unless code shrinking (R8/Proguard) is also on, and R8 on React
+       * Native can strip classes that native modules reach by reflection — a failure that
+       * appears only at runtime, on a real device, in whichever screen touches the stripped
+       * module. The ABI filter above already removes 47 MB with no behavioural risk at all,
+       * which is the better trade for an app people are meant to install and rely on.
+       *
+       * To try it: set android.enableProguardInReleaseBuilds and
+       * android.enableShrinkResourcesInReleaseBuilds to true here, then exercise every
+       * screen on a device before sharing the result.
+       */
     ]
     for (const [key, value] of entries) {
       const existing = cfg.modResults.find((i) => i.type === 'property' && i.key === key)
@@ -97,11 +104,6 @@ function withReleaseSigning(config) {
     if (!gradle.includes('signingConfig signingConfigs.release')) {
       if (!gradle.includes(RELEASE_ANCHOR)) problems.push('release build type not found')
       gradle = gradle.replace(RELEASE_ANCHOR, '            signingConfig signingConfigs.release')
-    }
-
-    if (!gradle.includes('abiFilters')) {
-      if (!gradle.includes(ABI_ANCHOR)) problems.push('defaultConfig not found')
-      gradle = gradle.replace(ABI_ANCHOR, ABI_BLOCK)
     }
 
     // Fail loudly. A silently un-applied edit here means a debug-signed release APK, which

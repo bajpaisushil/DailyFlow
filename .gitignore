@@ -51,3 +51,6 @@ yarn-error.*
 # Signing key and its credentials — never committed.
 *.keystore
 !android/app/debug.keystore
+
+# The built APK is a build artifact, not source.
+DailyFlow.apk
