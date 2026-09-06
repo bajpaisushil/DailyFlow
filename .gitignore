@@ -54,3 +54,6 @@ yarn-error.*
 
 # The built APK is a build artifact, not source.
 DailyFlow.apk
+
+# Records which commit DailyFlow.apk was built from.
+.apk-commit

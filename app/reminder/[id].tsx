@@ -83,7 +83,8 @@ export default function ReminderEditor() {
 
   React.useEffect(() => {
     if (!notificationsAvailable()) {
-      setReach('off')
+      // Not "off" — there is no switch to find. Saying so prevents a hunt through settings.
+      setReach('unavailable')
       return
     }
     void readPermission().then((p) =>

@@ -199,6 +199,7 @@ export const S = {
     openOnly: 'Only works while DailyFlow is open',
     needsAllow: 'Needs your permission first',
     off: 'Turned off',
+    unavailable: 'This test app cannot send reminders',
     whyOpenOnly: 'Your phone will not let DailyFlow watch this in the background.',
     fixIt: 'Turn it on',
   },

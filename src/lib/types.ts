@@ -408,6 +408,11 @@ export interface Routine extends BaseRecord {
 // Commute
 // ────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Commute is no longer a feature — a reminder with a place trigger does the same job without
+ * anyone having to remember to press "I am leaving". These types remain so that backups made
+ * before that change still import cleanly; nothing writes them any more.
+ */
 export interface CommuteProfile extends BaseRecord {
   name: string
   icon: string

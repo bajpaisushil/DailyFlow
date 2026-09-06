@@ -66,12 +66,21 @@ export default function TodayScreen() {
 
   // Ask about reminders only once there is a plan that would actually send one. Before
   // that the permission has no purpose, and asking would be the nagging we promised to avoid.
-  const hasPlans = routines.some((r) => r.enabled)
+  /**
+   * Anything at all that is supposed to reach the user.
+   *
+   * This used to check only routines, so someone who had created REMINDERS -- which is now
+   * the whole point of the app -- was told nothing about the fact that none of them could
+   * possibly fire. They set things up and got silence, with no explanation. Silence that
+   * looks like a working app is the single worst failure this product can have.
+   */
+  const hasAnythingScheduled =
+    routines.some((r) => r.enabled) || reminders.some((r) => r.enabled)
   // Only ask when asking can actually achieve something. In Expo Go the permission exists
   // but the scheduler does not, so prompting would be a dead end.
   const needsReminderPermission =
-    !isFirstRun && hasPlans && caps.canScheduleAtAll && !caps.remindersWorkWhenClosed
-  const cannotSchedule = !isFirstRun && hasPlans && !caps.canScheduleAtAll
+    !isFirstRun && hasAnythingScheduled && caps.canScheduleAtAll && !caps.remindersWorkWhenClosed
+  const cannotSchedule = !isFirstRun && hasAnythingScheduled && !caps.canScheduleAtAll
 
   return (
     <Screen>
@@ -91,13 +100,19 @@ export default function TodayScreen() {
       ) : null}
 
       {cannotSchedule ? (
-        <Card tone="flat" style={{ marginBottom: space.lg }}>
+        <Card style={[styles.warningCard, { backgroundColor: c.warnSoft }]}>
           <View style={styles.notice}>
-            <Icon name="phoneOff" size={19} color={c.warn} />
-            <Text variant="caption" tone="muted" style={{ flex: 1 }}>
-              {EXPO_GO_LIMITATION}
+            <Icon name="phoneOff" size={22} color={c.warn} />
+            <Text variant="heading" style={{ color: c.warn, flex: 1 }}>
+              Nothing will reach you yet
             </Text>
           </View>
+          <Text variant="body" tone="muted" style={{ marginTop: space.sm }}>
+            {EXPO_GO_LIMITATION}
+          </Text>
+          <Text variant="caption" tone="muted" style={{ marginTop: space.sm }}>
+            Your reminders are saved and will work as soon as you use the real app.
+          </Text>
         </Card>
       ) : null}
 
@@ -254,4 +269,5 @@ const styles = StyleSheet.create({
   },
   empty: { alignItems: 'center', paddingVertical: space['3xl'] },
   notice: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  warningCard: { marginBottom: space.lg },
 })

@@ -29,6 +29,15 @@ fi
 
 KEYSTORE="$ROOT/android/app/dailyflow-release.keystore"
 
+# Captured before anything is built. Stamping at the END would record whatever HEAD had
+# become by then, which after a four-minute build may be a commit whose code is not in this
+# APK at all — exactly the false confidence the stamp exists to prevent.
+BUILT_FROM="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+if ! git -C "$ROOT" diff --quiet 2>/dev/null || ! git -C "$ROOT" diff --cached --quiet 2>/dev/null; then
+  BUILT_FROM="${BUILT_FROM}+edits"
+  echo "Note: there are uncommitted changes; they ARE in this build."
+fi
+
 echo "==> Generating the native project"
 npx expo prebuild --platform android
 
@@ -58,6 +67,10 @@ APK="$ROOT/android/app/build/outputs/apk/release/app-release.apk"
 OUT="$ROOT/DailyFlow.apk"
 cp "$APK" "$OUT"
 
+# A stale APK is indistinguishable from a fresh one by looking at it, so the only reliable
+# check is recording what actually went into it.
+printf '%s' "$BUILT_FROM" > "$ROOT/.apk-commit"
+
 echo
-echo "Done: $OUT  ($(du -h "$OUT" | cut -f1))"
+echo "Done: $OUT  ($(du -h "$OUT" | cut -f1))  from $BUILT_FROM"
 echo "Send that file to anyone. They may need to allow installing from unknown sources."

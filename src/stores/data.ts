@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type {
-  Automation, Checklist, ChecklistRun, CommuteSession, Place, Reminder, Routine,
+  Automation, Checklist, ChecklistRun, Place, Reminder, Routine,
 } from '@/lib/types'
 import * as repo from '@/lib/db/repo'
 import { localDateKey } from '@/lib/time'
@@ -22,7 +22,6 @@ interface DataState {
   reminders: Reminder[]
   automations: Automation[]
   runs: ChecklistRun[]
-  activeCommute: CommuteSession | null
 
   refresh: () => void
 
@@ -51,7 +50,6 @@ function readAll() {
     reminders: repo.reminders.all(),
     automations: repo.automations.all(),
     runs: repo.checklistRuns.all(),
-    activeCommute: repo.commuteSessions.active(),
   }
 }
 

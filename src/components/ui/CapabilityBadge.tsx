@@ -22,6 +22,8 @@ export type Reach =
   | 'needsAllow'
   /** The user switched it off. */
   | 'off'
+  /** This build cannot do it at all — Expo Go. Not the user's doing, and not fixable here. */
+  | 'unavailable'
 
 interface Props {
   reach: Reach
@@ -36,6 +38,9 @@ export function CapabilityBadge({ reach, compact }: Props) {
     openOnly: { bg: c.warnSoft, fg: c.warn, icon: 'phoneOff' as const, text: S.can.openOnly },
     needsAllow: { bg: c.accentSoft, fg: c.accent, icon: 'lock' as const, text: S.can.needsAllow },
     off: { bg: c.canvasDeep, fg: c.inkFaint, icon: 'bellOff' as const, text: S.can.off },
+    // Distinguished from 'off' on purpose: "turned off" invites the user to go looking for a
+    // switch that does not exist, and wastes their time before they conclude the app is broken.
+    unavailable: { bg: c.warnSoft, fg: c.warn, icon: 'phoneOff' as const, text: S.can.unavailable },
   }[reach]
 
   return (

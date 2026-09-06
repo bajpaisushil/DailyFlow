@@ -33,4 +33,4 @@ export const supportsScheduledNotifications = !isExpoGo && Platform.OS !== 'web'
  * else the app can simply do; this is the only sentence we ever need to show about builds.
  */
 export const EXPO_GO_LIMITATION =
-  'You are using the Expo test app. Reminders need the real DailyFlow app.'
+  'You are using Expo Go, which cannot send reminders or watch places. Nothing will arrive, even with the screen on. Install the DailyFlow app itself and they will start working.'
