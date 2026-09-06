@@ -71,6 +71,7 @@ export const MAP = {
   more: { set: 'ion', name: 'ellipsis-horizontal' },
   calendar: { set: 'ion', name: 'calendar' },
   repeat: { set: 'ion', name: 'repeat' },
+  copy: { set: 'ion', name: 'copy-outline' },
   play: { set: 'ion', name: 'play' },
   // Pause and stop are distinct on purpose: pausing keeps your place in a long recording,
   // stopping gives it up. One control doing both is what made the preview unusable.

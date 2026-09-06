@@ -22,6 +22,7 @@ import { speak, reminderSpeech } from '@/lib/notify/speak'
 import { useData } from '@/stores/data'
 import { newId } from '@/lib/id'
 import { applyReminder, removeReminder } from '@/lib/engine/applyReminder'
+import { duplicateReminder } from '@/lib/duplicateReminder'
 import {
   notificationsAvailable, readPermission, requestPermission, timeIsInQuietHours,
 } from '@/lib/notify/scheduler'
@@ -110,6 +111,8 @@ export default function ReminderEditor() {
   const [editingTime, setEditingTime] = useState<string | null>(null)
   const [reach, setReach] = useState<Reach>('needsAllow')
   const [saving, setSaving] = useState(false)
+  // Guards against a double tap producing two copies.
+  const [duplicating, setDuplicating] = useState(false)
 
   React.useEffect(() => {
     if (!notificationsAvailable()) {
@@ -719,13 +722,45 @@ export default function ReminderEditor() {
 
       <CapabilityBadge reach={reach} />
 
+      {/*
+        Duplicate, then land the user in the copy.
+        The reason anyone duplicates a reminder is to change ONE thing about it — the time,
+        the day, the place — so opening the copy is the next step every time, and making them
+        find it in the list afterwards would just be a step they always have to take.
+      */}
+      {!isNew && existing ? (
+        <Button
+          label="Make a copy"
+          icon="copy"
+          variant="secondary"
+          full
+          style={{ marginTop: space['3xl'] }}
+          disabled={duplicating}
+          onPress={() => {
+            if (duplicating) return
+            setDuplicating(true)
+            const copy = duplicateReminder(existing, {
+              reminder: newId(),
+              placeTriggers: existing.placeTriggers.map(() => newId()),
+            })
+            void applyReminder(copy)
+              .then(() => {
+                refresh()
+                // Replace, not push: Back should return to the list, not to the original.
+                router.replace(`/reminder/${copy.id}`)
+              })
+              .finally(() => setDuplicating(false))
+          }}
+        />
+      ) : null}
+
       {!isNew && existing ? (
         <Button
           label={S.action.remove}
           icon="trash"
           variant="danger"
           full
-          style={{ marginTop: space['3xl'] }}
+          style={{ marginTop: space.md }}
           onPress={() => {
             // Nothing the user made is destroyed without being asked. A Remove button that
             // acts on the first tap is how people lose things they meant to keep.
