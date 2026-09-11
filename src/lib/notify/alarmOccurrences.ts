@@ -1,7 +1,7 @@
 import type { Reminder } from '@/lib/types'
 import { courseOccurrences } from '@/lib/course'
 import { isDated, nextDates } from '@/lib/repeat'
-import { parseHHMM, startOfLocalDay } from '@/lib/time'
+import { localDateKey, parseHHMM, startOfLocalDay } from '@/lib/time'
 
 /**
  * Which moments a reminder should actually RING at — pure, so the arithmetic is testable
@@ -93,14 +93,14 @@ function timedOccurrences(
   if (isDated(reminder.repeat) && reminder.onDate) {
     const dates = nextDates(reminder.repeat!, reminder.onDate, from, DATED_LOOK_AHEAD)
     if (dates.length === 0) return []
-    return courseOccurrences({ ...reminder, dates }, from)
-      .map((o) => o.at)
+    return withoutPaused(reminder, courseOccurrences({ ...reminder, dates }, from).map((o) => o.at))
       .slice(0, MAX_ALARMS)
   }
 
   // A bounded course already knows its own dates; reuse that rather than duplicate the logic.
   if (reminder.endsOn) {
-    return courseOccurrences(reminder, from).map((o) => o.at).slice(0, MAX_ALARMS)
+    return withoutPaused(reminder, courseOccurrences(reminder, from).map((o) => o.at))
+      .slice(0, MAX_ALARMS)
   }
 
   const out: number[] = []
@@ -132,7 +132,21 @@ function timedOccurrences(
     }
   }
 
-  return out.sort((a, b) => a - b).slice(0, MAX_ALARMS)
+  return withoutPaused(reminder, out).sort((a, b) => a - b).slice(0, MAX_ALARMS)
+}
+
+/**
+ * Drop every firing that falls inside the pause.
+ *
+ * Applied to the timestamps rather than to the rule, because an alarm is armed as a list of
+ * concrete moments — so a paused reminder must simply not put those moments in the OS alarm
+ * table at all. There is no later chance to intercept one: nothing of ours is running when
+ * AlarmManager fires.
+ */
+function withoutPaused(reminder: Reminder, moments: number[]): number[] {
+  if (!reminder.pausedUntil) return moments
+  const until = reminder.pausedUntil
+  return moments.filter((at) => localDateKey(new Date(at)) > until)
 }
 
 /**

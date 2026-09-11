@@ -35,6 +35,7 @@ import {
   OnDatePicker, describeDated, toLocalDate,
 } from '@/components/reminders/OnDatePicker'
 import { isDated } from '@/lib/repeat'
+import { clearedIfLapsed, describePause, pauseForDays } from '@/lib/pause'
 import { clockAlarmSupported, setClockAlarm } from '@/lib/notify/clockAlarm'
 import {
   alarmModuleAvailable, canShowFullScreenAlarm, DEFAULT_ALARM_SECONDS, describeRingLength,
@@ -133,6 +134,14 @@ export default function ReminderEditor() {
   // Guards against a double tap producing two copies.
   const [duplicating, setDuplicating] = useState(false)
 
+  /** Off indefinitely, versus quiet until a date passes. They are different questions. */
+  const [enabled, setEnabled] = useState(existing?.enabled ?? true)
+  const [pausedUntil, setPausedUntil] = useState<LocalDate | undefined>(
+    // A pause that has already lapsed is dead weight: it makes the reminder look paused and
+    // invites the user to resume something that resumed days ago.
+    clearedIfLapsed(existing?.pausedUntil),
+  )
+
   React.useEffect(() => {
     if (!notificationsAvailable()) {
       // Not "off" — there is no switch to find. Saying so prevents a hunt through settings.
@@ -196,7 +205,8 @@ export default function ReminderEditor() {
       id: existing?.id ?? newId(),
       title: title.trim(),
       icon,
-      enabled: existing?.enabled ?? true,
+      enabled,
+      pausedUntil,
       times,
       days,
       endsOn,
@@ -226,7 +236,8 @@ export default function ReminderEditor() {
   }, [
     canSave, saving, reach, existing, title, icon, times, days,
     placeTriggers, leads, checklistId, priority, alertStyle, toneId, soundFile, soundLabel,
-    speakAloud, alarmSeconds, sound, vibrate, endsOn, startsOn, repeat, onDate, refresh, router,
+    speakAloud, alarmSeconds, sound, vibrate, endsOn, startsOn, repeat, onDate,
+    enabled, pausedUntil, refresh, router,
   ])
 
   return (
@@ -822,6 +833,83 @@ export default function ReminderEditor() {
       <CapabilityBadge reach={reach} />
 
       {/*
+        Going quiet without losing anything.
+
+        Remove destroys the icon, the times, the place, the sound and the list. Wanting a
+        reminder to stop for a week is not wanting to lose all of that, but Remove was the only
+        tool — so the real choice was "delete it and build it again later", which is how people
+        end up with no reminders at all.
+      */}
+      {!isNew && existing ? (
+        <Card tone="flat" style={{ marginTop: space['3xl'], marginBottom: space.sm }}>
+          <Toggle
+            label="Reminder is on"
+            help={enabled
+              ? 'Turn this off to keep it without it arriving.'
+              : 'It is kept, but nothing will arrive until you turn it on.'}
+            icon="bell"
+            value={enabled}
+            onChange={(next) => {
+              setEnabled(next)
+              // Turning it back on ends any pause too: the user has plainly asked for it back.
+              if (next) setPausedUntil(undefined)
+            }}
+          />
+
+          {enabled ? (
+            <>
+              <Text variant="label" style={{ marginTop: space.lg, marginBottom: space.sm }}>
+                Or just skip it for a while
+              </Text>
+              <View style={styles.chips}>
+                {([
+                  { label: 'Not today', days: 1 },
+                  { label: '3 days', days: 3 },
+                  { label: '1 week', days: 7 },
+                  { label: '2 weeks', days: 14 },
+                ] as const).map((option) => {
+                  const value = pauseForDays(option.days)
+                  const active = pausedUntil === value
+                  return (
+                    <PressableScale
+                      key={option.label}
+                      onPress={() => setPausedUntil(active ? undefined : value)}
+                      depth="sm"
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: active }}
+                      accessibilityLabel={option.label}
+                      style={[
+                        styles.chip,
+                        { backgroundColor: active ? c.accent : c.surfaceAlt },
+                      ]}
+                    >
+                      <Text variant="label" style={{ color: active ? c.onAccent : c.inkMuted }}>
+                        {option.label}
+                      </Text>
+                    </PressableScale>
+                  )
+                })}
+              </View>
+
+              {pausedUntil ? (
+                <View style={styles.pauseRow}>
+                  <Text variant="caption" tone="warn" style={{ flex: 1 }}>
+                    {describePause({ enabled, pausedUntil }, new Date(), locale)}
+                  </Text>
+                  <Button
+                    label="Bring it back"
+                    icon="play"
+                    variant="quiet"
+                    onPress={() => setPausedUntil(undefined)}
+                  />
+                </View>
+              ) : null}
+            </>
+          ) : null}
+        </Card>
+      ) : null}
+
+      {/*
         Duplicate, then land the user in the copy.
         The reason anyone duplicates a reminder is to change ONE thing about it — the time,
         the day, the place — so opening the copy is the next step every time, and making them
@@ -833,7 +921,7 @@ export default function ReminderEditor() {
           icon="copy"
           variant="secondary"
           full
-          style={{ marginTop: space['3xl'] }}
+          style={{ marginTop: space.md }}
           disabled={duplicating}
           onPress={() => {
             if (duplicating) return
@@ -926,6 +1014,9 @@ function PlaceToggle({
 
 const styles = StyleSheet.create({
   section: { marginBottom: space.md },
+  pauseRow: {
+    flexDirection: 'row', alignItems: 'center', gap: space.md, marginTop: space.md,
+  },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginBottom: space.md },
   chip: {
     paddingHorizontal: space.lg, minHeight: 46, borderRadius: radius.pill,

@@ -366,6 +366,15 @@ export interface Reminder extends BaseRecord {
    * already saved changes meaning. 'monthly', 'yearly' and 'once' are driven by `onDate`
    * instead of by weekdays: rent on the 31st, Diwali, an interview.
    */
+  /**
+   * Quiet through the whole of this date, inclusive; normal again the day after.
+   *
+   * Distinct from `enabled`, which is off indefinitely. This one is waiting for a date to
+   * pass, which is what "skip today" and "pause for a week" actually are — and it exists so
+   * going quiet never means deleting a reminder and rebuilding it later.
+   */
+  pausedUntil?: LocalDate
+
   repeat?: RepeatKind
   /** The date the dated repeats are anchored to. Ignored when repeat is weekly. */
   onDate?: LocalDate

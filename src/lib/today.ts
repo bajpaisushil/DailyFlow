@@ -3,6 +3,7 @@ import type {
 } from '@/lib/types'
 import { checklistPeriodKey } from '@/lib/checklistPeriod'
 import { isDated, nextDates } from '@/lib/repeat'
+import { isActive } from '@/lib/pause'
 import { alreadyThere, currentPlace, type Presence } from '@/lib/presence'
 import { localDateKey, minutesOfDay, parseHHMM, weekdayOf } from '@/lib/time'
 
@@ -149,7 +150,7 @@ export function buildToday(input: {
     Math.max(0, nowMinutes - startsAtMinutes)
 
   const fromRoutines: TodayEntry[] = routines
-    .filter((r) => r.enabled && r.days.includes(today))
+    .filter((r) => isActive(r, now) && r.days.includes(today))
     .map((r) => {
       const startsAtMinutes = parseHHMM(r.startTime) ?? 0
       const endMinutes = r.endTime ? parseHHMM(r.endTime) : null
@@ -204,7 +205,7 @@ export function buildToday(input: {
   }
 
   const fromReminders: TodayEntry[] = reminders
-    .filter((r) => r.enabled && withinCourse(r) && happensToday(r))
+    .filter((r) => isActive(r, now) && withinCourse(r) && happensToday(r))
     .flatMap((r) =>
       r.times.flatMap((time) => {
         const startsAtMinutes = parseHHMM(time)
@@ -247,7 +248,7 @@ export function buildToday(input: {
   const attachedIds = new Set([
     ...entries.flatMap((e) => e.routine?.checklistIds ?? []),
     ...reminders
-      .filter((r) => r.enabled && r.checklistId && withinCourse(r) && happensToday(r))
+      .filter((r) => isActive(r, now) && r.checklistId && withinCourse(r) && happensToday(r))
       .map((r) => r.checklistId!),
   ])
   const relevant = checklists.filter((c) => attachedIds.has(c.id))

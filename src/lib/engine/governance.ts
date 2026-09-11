@@ -3,6 +3,7 @@ import type {
 } from '@/lib/types'
 import { isWithinWindow, localDateKey, minutesOfDay } from '@/lib/time'
 import { checklistPeriodKey } from '@/lib/checklistPeriod'
+import { isPaused } from '@/lib/pause'
 import { activity, automations, firings } from '@/lib/db/repo'
 
 /**
@@ -90,6 +91,18 @@ export function decide(input: GovernanceInput): Decision {
   // 2. Switched off.
   if (!automation.enabled) {
     return { allow: false, reason: 'This reminder is off.' }
+  }
+
+  /**
+   * 2b. Paused.
+   *
+   * Checked here as well as at compile time because a PLACE trigger has no schedule to leave
+   * out — it fires whenever the user crosses the boundary, so the only place to stop it is at
+   * the moment it would fire.
+   */
+  const source = reminders.find((r) => r.id === automation.sourceReminderId)
+  if (source && isPaused(source, now)) {
+    return { allow: false, reason: 'This reminder is paused.' }
   }
 
   // 3. Nothing left to remind about.

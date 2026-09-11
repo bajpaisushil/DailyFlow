@@ -1,5 +1,6 @@
 import type { Automation, Checklist, LocalDate, Reminder, Weekday } from '@/lib/types'
 import { isDated, nextDates } from '@/lib/repeat'
+import { datesAfterPause, isPaused } from '@/lib/pause'
 import { newId } from '@/lib/id'
 import { parseHHMM, toHHMM } from '@/lib/time'
 
@@ -49,14 +50,20 @@ export function compileReminder(
   reminder: Reminder,
   checklists: Checklist[],
   existing: Automation[] = [],
+  /**
+   * Injected so time-dependent compilation can actually be tested.
+   *
+   * This read the clock internally, which meant the behaviour that depends on the date —
+   * whether a reminder is paused, which occurrences of a yearly repeat are still ahead — could
+   * only ever be tested against whatever today happened to be.
+   */
+  at: Date = new Date(),
 ): Automation[] {
   if (!reminder.enabled && existing.length === 0) return []
 
   const bySlot = new Map(existing.map((a) => [a.sourceSlot, a]))
-  const now = Date.now()
-  // A Date as well as a stamp: dated repeats need to know which occurrences are still ahead.
-  const today = new Date(now)
-  const timeWindow = windowFor(reminder, today)
+  const now = at.getTime()
+  const timeWindow = windowFor(reminder, at)
   const out: Automation[] = []
   const listLine = checklistLine(reminder, checklists)
 
@@ -214,6 +221,23 @@ type WindowResult =
   | undefined
 
 function windowFor(reminder: Reminder, now: Date): WindowResult {
+  /**
+   * A pause cannot leave a repeating rule in place.
+   *
+   * "Every day at 8" is handed to the OS as one repeating trigger, and there is no way to
+   * cancel a single day of it — the OS would fire straight through the pause. Nor can the rule
+   * simply be switched off, because switching it back on would need the app to be opened, and
+   * someone who paused a reminder for a week is exactly the person not opening it that week.
+   *
+   * So while paused it is laid out as explicit dates for the days it should ring AFTER the
+   * pause, which the OS holds without our help. Every app start extends the horizon.
+   */
+  if (isPaused(reminder, now) && !isDated(reminder.repeat)) {
+    const dates = datesAfterPause(reminder, now)
+    if (dates.length === 0) return 'none'
+    return { dates, until: dates[dates.length - 1]! }
+  }
+
   if (isDated(reminder.repeat)) {
     /**
      * A dated repeat with no usable date compiles to NOTHING.
@@ -224,7 +248,9 @@ function windowFor(reminder: Reminder, now: Date): WindowResult {
      * mode has to be silence, not a daily alarm.
      */
     if (!reminder.onDate) return 'none'
-    const dates = nextDates(reminder.repeat!, reminder.onDate, now, LOOK_AHEAD)
+    const all = nextDates(reminder.repeat!, reminder.onDate, now, LOOK_AHEAD)
+    // A dated repeat simply drops the occurrences inside the pause.
+    const dates = all.filter((d) => !reminder.pausedUntil || d > reminder.pausedUntil)
     if (dates.length === 0) return 'none'
     return { dates, until: dates[dates.length - 1]! }
   }

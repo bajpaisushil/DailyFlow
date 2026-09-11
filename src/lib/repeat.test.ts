@@ -223,8 +223,10 @@ describe('a dated repeat fires only on its dates', () => {
     createdAt: 0, updatedAt: 0,
   }
 
+  // The clock is injected into BOTH stages. compileReminder used to read it internally, so
+  // these were really testing "whatever today happens to be" on one side of the seam.
   const plansFor = (r: Reminder, at: Date) =>
-    compileReminder(r, []).flatMap((a) => planFor(a, at))
+    compileReminder(r, [], [], at).flatMap((a) => planFor(a, at))
 
   it('produces one firing per date, not one per day', () => {
     const plans = plansFor(yearly, on(2026, 9, 7))

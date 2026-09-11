@@ -12,6 +12,10 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { useData } from '@/stores/data'
 import { useSettings } from '@/stores/settings'
 import { describeReminder } from '@/lib/reminders'
+import { describePause, isActive, skipTodayUntil } from '@/lib/pause'
+import { applyReminder } from '@/lib/engine/applyReminder'
+import { useClock } from '@/hooks/useClock'
+import type { Reminder } from '@/lib/types'
 import { space, radius } from '@/theme/tokens'
 import { useColors } from '@/theme/ThemeProvider'
 
@@ -38,6 +42,31 @@ export default function RemindersScreen() {
     [places],
   )
 
+  const refresh = useData((s) => s.refresh)
+  const now = useClock()
+
+  /**
+   * Each of these saves through applyReminder, not straight into the store.
+   *
+   * Going quiet has to reach the PHONE: the reminder's automations must be recompiled and the
+   * OS schedule and alarms re-laid. Writing `pausedUntil` into the database alone would leave
+   * every already-scheduled notification and armed alarm exactly where it was, so the reminder
+   * would look paused on this screen and go off anyway.
+   */
+  const save = async (next: Reminder) => {
+    await applyReminder({ ...next, updatedAt: Date.now() })
+    refresh()
+  }
+
+  const pause = (reminder: Reminder, until: string) =>
+    save({ ...reminder, enabled: true, pausedUntil: until as Reminder['pausedUntil'] })
+
+  const turnOff = (reminder: Reminder) =>
+    save({ ...reminder, enabled: false, pausedUntil: undefined })
+
+  const resume = (reminder: Reminder) =>
+    save({ ...reminder, enabled: true, pausedUntil: undefined })
+
   return (
     <Screen>
       <ScreenHeader
@@ -62,7 +91,7 @@ export default function RemindersScreen() {
             entering={FadeInDown.delay(Math.min(i, 5) * 28).springify().damping(18).stiffness(140)}
           >
             <PressableScale onPress={() => router.push(`/reminder/${reminder.id}`)} depth="sm">
-              <Card style={[styles.card, !reminder.enabled && { opacity: 0.55 }]}>
+              <Card style={[styles.card, !isActive(reminder, now) && { opacity: 0.55 }]}>
                 <View style={styles.head}>
                   <IconBadge name={(reminder.icon as IconName) ?? 'bell'} />
                   <View style={styles.text}>
@@ -86,6 +115,43 @@ export default function RemindersScreen() {
                     <Mark icon="bell" label="Early warning" />
                   ) : null}
                 </View>
+
+                {/*
+                  Going quiet must be reachable from HERE, not from inside the editor.
+                  "Not today" is a thought people have while looking at the list, and the only
+                  way to act on it used to be Remove — which throws away the icon, the times,
+                  the place, the sound and the list, so the real choice was delete it and build
+                  it again later.
+                */}
+                <View style={styles.quickRow}>
+                  {describePause(reminder, now, locale) ? (
+                    <QuickAction
+                      icon="play"
+                      label={reminder.enabled ? 'Bring it back' : 'Turn it on'}
+                      tone="good"
+                      onPress={() => void resume(reminder)}
+                    />
+                  ) : (
+                    <>
+                      <QuickAction
+                        icon="moon"
+                        label="Not today"
+                        onPress={() => void pause(reminder, skipTodayUntil())}
+                      />
+                      <QuickAction
+                        icon="bellOff"
+                        label="Turn it off"
+                        onPress={() => void turnOff(reminder)}
+                      />
+                    </>
+                  )}
+                </View>
+
+                {describePause(reminder, now, locale) ? (
+                  <Text variant="caption" tone="warn" style={{ marginTop: space.xs }}>
+                    {describePause(reminder, now, locale)}
+                  </Text>
+                ) : null}
               </Card>
             </PressableScale>
           </Animated.View>
@@ -109,9 +175,52 @@ const styles = StyleSheet.create({
   card: { marginBottom: space.md, gap: space.md },
   head: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   text: { flex: 1, gap: 3 },
+  quickRow: { flexDirection: 'row', gap: space.xs, marginTop: space.md },
   marks: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
   mark: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: space.md, paddingVertical: 6, borderRadius: radius.pill,
+  },
+})
+
+/**
+ * One quiet, small action on a reminder row.
+ *
+ * Deliberately understated: these sit on every row, and a list where each item shouts two
+ * buttons is a list nobody can read. Large enough to hit, quiet enough to ignore.
+ */
+function QuickAction({
+  icon, label, onPress, tone,
+}: {
+  icon: IconName
+  label: string
+  onPress: () => void
+  tone?: 'good'
+}) {
+  const c = useColors()
+  const colour = tone === 'good' ? c.good : c.inkMuted
+  return (
+    <PressableScale
+      onPress={onPress}
+      depth="sm"
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      hitSlop={8}
+      style={[quick.button, { backgroundColor: c.surfaceAlt }]}
+    >
+      <Icon name={icon} size={16} color={colour} />
+      <Text variant="label" style={{ color: colour }}>{label}</Text>
+    </PressableScale>
+  )
+}
+
+const quick = StyleSheet.create({
+  button: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
+    paddingHorizontal: space.md,
+    minHeight: 40,
+    borderRadius: radius.lg,
   },
 })
